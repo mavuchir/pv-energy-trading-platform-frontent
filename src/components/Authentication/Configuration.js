@@ -77,16 +77,25 @@ const Configuration = () => {
     }
   }, [user, navigate]);
 
-  const fetchWeatherData = async (lat, lon) => {
-    try {
-      const response = await axios.get(`http://127.0.0.1:5000/api/weather?lat=${lat}&lon=${lon}`);
-      setEnvironmentalConditions(response.data);
-    } catch (error) {
-      console.error("Error fetching weather data:", error);
-      alert("Failed to fetch weather data. Please check your internet connection or try again later.");
-      setEnvironmentalConditions({ solarIrradiance: '', temperature: '' });
+const fetchWeatherData = async (lat, lon) => {
+  try {
+    const response = await axios.get(
+      `http://localhost:5000/household/weather?lat=${lat}&lon=${lon}`
+    );
+    
+    if (response.data.error) {
+      throw new Error(response.data.error);
     }
-  };
+
+    setEnvironmentalConditions({
+      solarIrradiance: response.data.solarIrradiance,
+      temperature: response.data.temperature
+    });
+  } catch (error) {
+    console.error("Error fetching weather data:", error);
+    alert("Failed to fetch weather data. Please check your internet connection or try again later.");
+  }
+};
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -110,7 +119,7 @@ const Configuration = () => {
       };
 
       try {
-        const response = await axios.post("http://localhost:5000/api/configuration", configData, {
+        const response = await axios.post("http://localhost:5000/household/configuration", configData, {
           headers: {
             "Content-Type": "application/json"
           }

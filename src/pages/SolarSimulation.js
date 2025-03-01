@@ -1,238 +1,215 @@
-"use client"
-
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
+import axios from 'axios'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/Card"
 import { Button } from "../components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs"
 import { Switch } from "../components/ui/switch"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts"
+import { Sun, Cloud, Battery, Zap } from 'lucide-react'
 
 const SolarSimulationPage = () => {
-  const [solarSystemConfig, setSolarSystemConfig] = useState(null)
-  const [isConfigComplete, setIsConfigComplete] = useState(false)
-  const [simulationData, setSimulationData] = useState(null)
-  const [appliances, setAppliances] = useState([])
+  const navigate = useNavigate()
+  const [realTimeData, setRealTimeData] = useState(null)
+  const [historicalData, setHistoricalData] = useState([])
+  const [systemStatus, setSystemStatus] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  useEffect(() => {
-    // Fetch solar system configuration
-    // This is a mock implementation. Replace with actual API call.
-    const fetchedConfig = {
-      location: { latitude: 40.7128, longitude: -74.006 },
-      panelSpecs: { type: "Monocrystalline", capacity: 5000 },
-      batteryCapacity: 10000,
-      environmentalConditions: { avgSolarIrradiance: 4.5 },
+  const fetchRealTimeData = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await axios.get('http://localhost:5000/api/energy/real-time', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      setRealTimeData(response.data.current)
+      setHistoricalData(response.data.historical)
+      setSystemStatus(response.data.systemStatus)
+    } catch (error) {
+      console.error('Error fetching real-time data:', error)
+      setError(error.response?.data?.message || 'Error fetching data')
     }
-    setSolarSystemConfig(fetchedConfig)
-    setIsConfigComplete(true)
-
-    // Fetch appliances
-    // This is a mock implementation. Replace with actual API call.
-    const fetchedAppliances = [
-      { id: 1, name: "Refrigerator", consumption: 150, isOn: true },
-      { id: 2, name: "Air Conditioner", consumption: 1000, isOn: false },
-      { id: 3, name: "Washing Machine", consumption: 500, isOn: false },
-    ]
-    setAppliances(fetchedAppliances)
-
-    // Generate mock simulation data
-    const mockSimulationData = generateMockSimulationData()
-    setSimulationData(mockSimulationData)
   }, [])
 
-  const generateMockSimulationData = () => {
-    const data = []
-    for (let i = 0; i < 24; i++) {
-      data.push({
-        time: `${i}:00`,
-        generation: Math.random() * 500,
-        consumption: Math.random() * 400,
-        batterylevel: Math.random() * 100,
-      })
-    }
-    return data
+  useEffect(() => {
+    fetchRealTimeData()
+    // Update real-time data every 5 seconds
+    const interval = setInterval(fetchRealTimeData, 5000)
+    return () => clearInterval(interval)
+  }, [fetchRealTimeData])
+
+  if (loading) {
+    return <div className="loading-spinner" />
   }
 
-  const handleEditConfig = () => {
-    // Implement edit configuration logic
-    console.log("Edit configuration")
-  }
-
-  const handleApplianceToggle = (id) => {
-    setAppliances(appliances.map((app) => (app.id === id ? { ...app, isOn: !app.isOn } : app)))
-  }
-
-  const calculateEnergyBalance = () => {
-    const totalGeneration = simulationData.reduce((sum, data) => sum + data.generation, 0)
-    const totalConsumption = simulationData.reduce((sum, data) => sum + data.consumption, 0)
-    return totalGeneration - totalConsumption
-  }
-
-  if (!solarSystemConfig || !simulationData) {
-    return <div>Loading...</div>
+  if (error) {
+    return <div className="error-message">{error}</div>
   }
 
   return (
     <div className="container mx-auto p-4">
-      {/* Top Summary Bar */}
+      {/* Real-time Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Sun className="mr-2" />
+              Generation
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {realTimeData?.generation.toFixed(2)} W
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Efficiency: {systemStatus?.efficiency}%
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Zap className="mr-2" />
+              Consumption
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {realTimeData?.consumption.toFixed(2)} W
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Grid Status: {realTimeData?.gridStatus}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Battery className="mr-2" />
+              Battery
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {realTimeData?.batteryLevel.toFixed(1)}%
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div 
+                className="bg-green-600 h-2.5 rounded-full" 
+                style={{ width: `${realTimeData?.batteryLevel}%` }}
+              ></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Cloud className="mr-2" />
+              Weather
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {systemStatus?.weather.temperature.toFixed(1)}°C
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Cloud Cover: {systemStatus?.weather.cloudCover.toFixed(1)}%
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Live Chart */}
       <Card className="mb-6">
-        <CardContent className="p-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-2xl font-bold">Solar Simulation Dashboard</h2>
-              <p className="text-gray-600">Energy Balance: {calculateEnergyBalance().toFixed(2)} kWh</p>
-            </div>
-            <div className="text-right">
-              <p className="font-semibold">Solar Efficiency: 85%</p>
-              <p className="font-semibold">Battery Charge: 75%</p>
-            </div>
+        <CardHeader>
+          <CardTitle>Live Energy Flow</CardTitle>
+          <CardDescription>Real-time generation vs consumption</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={historicalData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="timestamp" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Area 
+                  type="monotone" 
+                  dataKey="generation" 
+                  stackId="1"
+                  stroke="#4ade80" 
+                  fill="#4ade80" 
+                  fillOpacity={0.3}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="consumption" 
+                  stackId="2"
+                  stroke="#f43f5e" 
+                  fill="#f43f5e" 
+                  fillOpacity={0.3}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
 
-      {/* Configuration Status Panel */}
-      {!isConfigComplete && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Configuration Incomplete</CardTitle>
-            <CardDescription>Please complete your solar system setup to enable full simulation.</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button onClick={() => setIsConfigComplete(true)}>Complete Setup</Button>
-          </CardFooter>
-        </Card>
-      )}
-
-      {/* Main Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* System Overview */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>System Overview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="generation">
-              <TabsList>
-                <TabsTrigger value="generation">Generation</TabsTrigger>
-                <TabsTrigger value="consumption">Consumption</TabsTrigger>
-                <TabsTrigger value="battery">Battery</TabsTrigger>
-              </TabsList>
-              <TabsContent value="generation">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={simulationData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="generation" stroke="#8884d8" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </TabsContent>
-              <TabsContent value="consumption">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={simulationData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="consumption" stroke="#82ca9d" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </TabsContent>
-              <TabsContent value="battery">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={simulationData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="batterylevel" stroke="#ffc658" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        {/* System Configuration */}
+      {/* System Efficiency Trends */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>System Configuration</CardTitle>
-            <CardDescription>Current solar system setup</CardDescription>
+            <CardTitle>Battery Level Trend</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="space-y-2">
-              <div>
-                <dt className="font-semibold">Location</dt>
-                <dd>
-                  {solarSystemConfig.location.latitude}, {solarSystemConfig.location.longitude}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-semibold">Panel Type</dt>
-                <dd>{solarSystemConfig.panelSpecs.type}</dd>
-              </div>
-              <div>
-                <dt className="font-semibold">System Capacity</dt>
-                <dd>{solarSystemConfig.panelSpecs.capacity} W</dd>
-              </div>
-              <div>
-                <dt className="font-semibold">Battery Capacity</dt>
-                <dd>{solarSystemConfig.batteryCapacity} Wh</dd>
-              </div>
-              <div>
-                <dt className="font-semibold">Avg. Solar Irradiance</dt>
-                <dd>{solarSystemConfig.environmentalConditions.avgSolarIrradiance} kWh/m²/day</dd>
-              </div>
-            </dl>
-          </CardContent>
-          <CardFooter>
-            <Button onClick={handleEditConfig}>Edit Configuration</Button>
-          </CardFooter>
-        </Card>
-
-        {/* Appliance Control */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Appliance Control</CardTitle>
-            <CardDescription>Manage your appliances and see their impact on energy consumption</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-4">
-              {appliances.map((appliance) => (
-                <li key={appliance.id} className="flex items-center justify-between">
-                  <span>
-                    {appliance.name} ({appliance.consumption} W)
-                  </span>
-                  <Switch checked={appliance.isOn} onCheckedChange={() => handleApplianceToggle(appliance.id)} />
-                </li>
-              ))}
-            </ul>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={historicalData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="timestamp" />
+                <YAxis />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey="batteryLevel" 
+                  stroke="#fbbf24" 
+                  strokeWidth={2}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Trading & Optimization Insights */}
         <Card>
           <CardHeader>
-            <CardTitle>Energy Trading Insights</CardTitle>
+            <CardTitle>Energy Balance</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="mb-4">Based on your current energy balance:</p>
-            {calculateEnergyBalance() > 0 ? (
-              <p className="text-green-600">
-                You have excess energy. Consider selling to the grid or neighbors for profit.
-              </p>
-            ) : (
-              <p className="text-red-600">
-                You have an energy deficit. Consider purchasing from the grid or optimizing consumption.
-              </p>
-            )}
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={historicalData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="timestamp" />
+                <YAxis />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey="generation" 
+                  stroke="#4ade80" 
+                  strokeWidth={2}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="consumption" 
+                  stroke="#f43f5e" 
+                  strokeWidth={2}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </CardContent>
-          <CardFooter>
-            <Button>View Trading Options</Button>
-          </CardFooter>
         </Card>
       </div>
     </div>
@@ -240,4 +217,3 @@ const SolarSimulationPage = () => {
 }
 
 export default SolarSimulationPage
-
