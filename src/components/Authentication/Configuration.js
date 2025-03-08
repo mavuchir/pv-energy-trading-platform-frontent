@@ -1,461 +1,366 @@
-"use client";
+"use client"
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FaSolarPanel, FaBolt, FaHome, FaBatteryFull } from 'react-icons/fa';
-import { Button } from '../ui/button';
-import { Input } from '../ui/Input';
-import { Label } from '../ui/label';
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
-import axios from 'axios';
-import { useAuth } from '../../contexts/AuthContext';
+import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
+import {
+  FaSolarPanel,
+  FaBatteryFull,
+  FaPlug,
+  FaArrowRight,
+  FaArrowLeft,
+  FaExclamationTriangle,
+  FaMapMarkerAlt,
+} from "react-icons/fa"
+import axios from "axios"
+
+// Create axios instance
+const api = axios.create({
+  baseURL: "http://localhost:5000",
+  headers: {
+    "Content-Type": "application/json",
+  },
+})
+
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token")
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
 
 const Configuration = () => {
-  const [step, setStep] = useState(1);
-  const [location, setLocation] = useState({ latitude: '', longitude: '' });
-  const [solarSpecs, setSolarSpecs] = useState({
-    capacity: '',
-    panelType: '',
-    numberOfPanels: '',
-    tiltAngle: '',
-    orientation: '',
-    efficiencyRating: ''
-  });
-  const [environmentalConditions, setEnvironmentalConditions] = useState({
-    solarIrradiance: '',
-    temperature: ''
-  });
-  const [batteryStorage, setBatteryStorage] = useState({
-    capacity: '',
-    depthOfDischarge: '',
-    chargeRate: '',
-    dischargeRate: ''
-  });
-  const [systemLosses, setSystemLosses] = useState({
-    inverterEfficiency: '',
-    wiringLosses: '',
-    otherLosses: ''
-  });
-  const [appliances, setAppliances] = useState([{ power: '', type: '', usage: '' }]);
+  const [step, setStep] = useState(1)
+  const [formData, setFormData] = useState({
+    solar_capacity: 5.0,
+    panel_efficiency: 0.85,
+    battery_capacity: 10.0,
+    battery_efficiency: 0.9,
+    grid_connection: true,
+    latitude: "",
+    longitude: "",
+  })
+  const [weatherData, setWeatherData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [locationLoading, setLocationLoading] = useState(false)
 
-  const navigate = useNavigate();
-  const { user } = useAuth();
+  const navigate = useNavigate()
 
   useEffect(() => {
-    const checkUserAuthentication = async () => {
-      const token = localStorage.getItem("token");
-      if (!user && token) {
-        try {
-          const response = await axios.get('/api/auth/me', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-        } catch (error) {
-          console.error("User authentication check failed:", error);
-          navigate('/login');
-        }
-      } else if (!user) {
-        navigate('/login');
-      }
-    };
-
-    checkUserAuthentication();
-
-    // Get user's geolocation
-    if ("geolocation" in navigator) {
+    // Try to get user's location
+    if (navigator.geolocation) {
+      setLocationLoading(true)
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setLocation({
+          setFormData((prev) => ({
+            ...prev,
             latitude: position.coords.latitude,
-            longitude: position.coords.longitude
-          });
-          fetchWeatherData(position.coords.latitude, position.coords.longitude);
+            longitude: position.coords.longitude,
+          }))
+          setLocationLoading(false)
+          fetchWeatherData(position.coords.latitude, position.coords.longitude)
         },
         (error) => {
-          console.error("Error Code = " + error.code + " - " + error.message);
-        }
-      );
+          console.error("Error getting location:", error)
+          setLocationLoading(false)
+        },
+      )
     }
-  }, [user, navigate]);
+  }, [])
 
-const fetchWeatherData = async (lat, lon) => {
-  try {
-    const response = await axios.get(
-      `http://localhost:5000/household/weather?lat=${lat}&lon=${lon}`
-    );
-    
-    if (response.data.error) {
-      throw new Error(response.data.error);
+  const fetchWeatherData = async (lat, lon) => {
+    if (!lat || !lon) return
+
+    try {
+      const tempData = { latitude: lat, longitude: lon }
+      const response = await api.post("/weather/temp-data", tempData)
+      setWeatherData(response.data)
+    } catch (error) {
+      console.error("Error fetching weather data:", error)
     }
-
-    setEnvironmentalConditions({
-      solarIrradiance: response.data.solarIrradiance,
-      temperature: response.data.temperature
-    });
-  } catch (error) {
-    console.error("Error fetching weather data:", error);
-    alert("Failed to fetch weather data. Please check your internet connection or try again later.");
   }
-};
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target
+    const newValue = type === "checkbox" ? checked : type === "number" ? Number.parseFloat(value) : value
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: newValue,
+    }))
+
+    // If latitude or longitude changed, fetch weather data
+    if ((name === "latitude" || name === "longitude") && formData.latitude && formData.longitude) {
+      fetchWeatherData(
+        name === "latitude" ? newValue : formData.latitude,
+        name === "longitude" ? newValue : formData.longitude,
+      )
     }
-  }, []);
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (step < 4) {
-      setStep(step + 1);
-    } else {
-      const configData = {
-        location,
-        solarSpecs,
-        environmentalConditions,
-        appliances,
-        systemLosses,
-        batteryStorage
-      };
-
-      try {
-        const response = await axios.post("http://localhost:5000/household/configuration", configData, {
-          headers: {
-            "Content-Type": "application/json"
-          }
-        });
-
-        if (response.status === 200) {
-          console.log("Configuration saved successfully");
-          navigate("/dashboard");
-        }
-      } catch (error) {
-        console.error("Error saving configuration:", error);
-        alert("Failed to save configuration. Please try again.");
-      }
+    e.preventDefault()
+    if (step < 3) {
+      setStep(step + 1)
+      return
     }
-  };
 
-  const addAppliance = () => {
-    setAppliances([...appliances, { power: '', type: '', usage: '' }]);
-  };
+    setLoading(true)
+    setError(null)
 
-  const updateAppliance = (index, field, value) => {
-    const newAppliances = [...appliances];
-    newAppliances[index][field] = value;
-    setAppliances(newAppliances);
-  };
+    try {
+      const response = await api.post("/household/configure", formData)
+      console.log("Configuration response:", response.data)
 
-  const renderStep = () => {
+      // Navigate to dashboard after successful configuration
+      if (response.data.user) {
+        navigate("/dashboard")
+      } else {
+        setError("Unexpected response from the server.")
+      }
+    } catch (err) {
+      console.error("Configuration error:", err)
+      setError(err.response?.data?.msg || "Failed to configure household. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const renderStepContent = () => {
     switch (step) {
       case 1:
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Location and Environmental Conditions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="latitude">Latitude</Label>
-                  <Input
-                    id="latitude"
-                    type="number"
-                    step="0.000001"
-                    value={location.latitude}
-                    onChange={(e) => setLocation({ ...location, latitude: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="longitude">Longitude</Label>
-                  <Input
-                    id="longitude"
-                    type="number"
-                    step="0.000001"
-                    value={location.longitude}
-                    onChange={(e) => setLocation({ ...location, longitude: e.target.value })}
-                    required
-                  />
-                </div>
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center mb-4 text-teal-600">
+              <FaSolarPanel className="h-6 w-6 mr-2" />
+              <h2 className="text-xl font-bold">Solar System Configuration</h2>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Solar Capacity (kW)</label>
+                <input
+                  type="number"
+                  name="solar_capacity"
+                  value={formData.solar_capacity}
+                  onChange={handleChange}
+                  min="0"
+                  step="0.1"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">The total capacity of your solar panels in kilowatts</p>
               </div>
-              <div className="mt-4">
-                <h4 className="text-md font-medium mb-2">Environmental Conditions</h4>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Panel Efficiency (0-1)</label>
+                <input
+                  type="number"
+                  name="panel_efficiency"
+                  value={formData.panel_efficiency}
+                  onChange={handleChange}
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">The efficiency rating of your solar panels</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div className="flex items-center">
+                    <FaMapMarkerAlt className="h-4 w-4 mr-1" />
+                    <span>Location Coordinates</span>
+                  </div>
+                </label>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="solarIrradiance">Solar Irradiance (W/m²)</Label>
-                    <Input
-                      id="solarIrradiance"
+                    <label className="block text-xs text-gray-500 mb-1">Latitude</label>
+                    <input
                       type="number"
-                      value={environmentalConditions.solarIrradiance}
-                      readOnly
+                      name="latitude"
+                      value={formData.latitude}
+                      onChange={handleChange}
+                      step="0.000001"
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="temperature">Average Temperature (°C)</Label>
-                    <Input
-                      id="temperature"
+                    <label className="block text-xs text-gray-500 mb-1">Longitude</label>
+                    <input
                       type="number"
-                      value={environmentalConditions.temperature}
-                      readOnly
+                      name="longitude"
+                      value={formData.longitude}
+                      onChange={handleChange}
+                      step="0.000001"
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
                     />
                   </div>
                 </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {locationLoading ? "Detecting your location..." : "Your geographical coordinates for weather data"}
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        );
+              {weatherData && (
+                <div className="bg-blue-50 p-4 rounded-md mt-4">
+                  <h3 className="font-medium text-blue-800">Current Weather Conditions</h3>
+                  <p className="text-sm text-blue-700">Temperature: {weatherData.temperature}°C</p>
+                  <p className="text-sm text-blue-700">Cloud Cover: {weatherData.cloud_cover}%</p>
+                  <p className="text-sm text-blue-700">Solar Irradiance: {weatherData.irradiance} W/m²</p>
+                  {weatherData.weather_description && (
+                    <p className="text-sm text-blue-700">Conditions: {weatherData.weather_description}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+
       case 2:
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Solar System Specifications</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="capacity">System Capacity (kW)</Label>
-                  <Input
-                    id="capacity"
-                    type="number"
-                    value={solarSpecs.capacity}
-                    onChange={(e) => setSolarSpecs({ ...solarSpecs, capacity: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="panelType">Panel Type</Label>
-                  <select
-                    id="panelType"
-                    value={solarSpecs.panelType}
-                    onChange={(e) => setSolarSpecs({ ...solarSpecs, panelType: e.target.value })}
-                    required
-                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                  >
-                    <option value="">Select panel type</option>
-                    <option value="monocrystalline">Monocrystalline</option>
-                    <option value="polycrystalline">Polycrystalline</option>
-                    <option value="thinFilm">Thin Film</option>
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="numberOfPanels">Number of Panels</Label>
-                  <Input
-                    id="numberOfPanels"
-                    type="number"
-                    value={solarSpecs.numberOfPanels}
-                    onChange={(e) => setSolarSpecs({ ...solarSpecs, numberOfPanels: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="tiltAngle">Tilt Angle (degrees)</Label>
-                  <Input
-                    id="tiltAngle"
-                    type="number"
-                    value={solarSpecs.tiltAngle}
-                    onChange={(e) => setSolarSpecs({ ...solarSpecs, tiltAngle: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="orientation">Orientation</Label>
-                  <select
-                    id="orientation"
-                    value={solarSpecs.orientation}
-                    onChange={(e) => setSolarSpecs({ ...solarSpecs, orientation: e.target.value })}
-                    required
-                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                  >
-                    <option value="">Select orientation</option>
-                    <option value="north">North</option>
-                    <option value="south">South</option>
-                    <option value="east">East</option>
-                    <option value="west">West</option>
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="efficiencyRating">Efficiency Rating (%)</Label>
-                  <Input
-                    id="efficiencyRating"
-                    type="number"
-                    value={solarSpecs.efficiencyRating}
-                    onChange={(e) => setSolarSpecs({ ...solarSpecs, efficiencyRating: e.target.value })}
-                    required
-                  />
-                </div>
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center mb-4 text-teal-600">
+              <FaBatteryFull className="h-6 w-6 mr-2" />
+              <h2 className="text-xl font-bold">Battery Storage Configuration</h2>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Battery Capacity (kWh)</label>
+                <input
+                  type="number"
+                  name="battery_capacity"
+                  value={formData.battery_capacity}
+                  onChange={handleChange}
+                  min="0"
+                  step="0.1"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">The total capacity of your battery storage in kilowatt-hours</p>
               </div>
-            </CardContent>
-          </Card>
-        );
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Battery Efficiency (0-1)</label>
+                <input
+                  type="number"
+                  name="battery_efficiency"
+                  value={formData.battery_efficiency}
+                  onChange={handleChange}
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">The round-trip efficiency of your battery storage system</p>
+              </div>
+            </div>
+          </div>
+        )
+
       case 3:
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Appliance Configurations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {appliances.map((appliance, index) => (
-                <div key={index} className="grid grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <Label htmlFor={`applianceType-${index}`}>Appliance Type</Label>
-                    <Input
-                      id={`applianceType-${index}`}
-                      value={appliance.type}
-                      onChange={(e) => updateAppliance(index, 'type', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor={`appliancePower-${index}`}>Power (Watts)</Label>
-                    <Input
-                      id={`appliancePower-${index}`}
-                      type="number"
-                      value={appliance.power}
-                      onChange={(e) => updateAppliance(index, 'power', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor={`applianceUsage-${index}`}>Daily Usage (Hours)</Label>
-                    <Input
-                      id={`applianceUsage-${index}`}
-                      type="number"
-                      value={appliance.usage}
-                      onChange={(e) => updateAppliance(index, 'usage', e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-              ))}
-              <Button onClick={addAppliance} className="mt-4">Add Appliance</Button>
-            </CardContent>
-          </Card>
-        );
-      case 4:
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>System Losses and Battery Storage</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center mb-4 text-teal-600">
+              <FaPlug className="h-6 w-6 mr-2" />
+              <h2 className="text-xl font-bold">Grid Connection</h2>
+            </div>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="inverterEfficiency">Inverter Efficiency (%)</Label>
-                  <Input
-                    id="inverterEfficiency"
-                    type="number"
-                    value={systemLosses.inverterEfficiency}
-                    onChange={(e) => setSystemLosses({ ...systemLosses, inverterEfficiency: e.target.value })}
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Connect to Grid</label>
+                  <p className="text-xs text-gray-500">Enable to connect your system to the power grid for energy trading</p>
                 </div>
-                <div>
-                  <Label htmlFor="wiringLosses">Wiring Losses (%)</Label>
-                  <Input
-                    id="wiringLosses"
-                    type="number"
-                    value={systemLosses.wiringLosses}
-                    onChange={(e) => setSystemLosses({ ...systemLosses, wiringLosses: e.target.value })}
-                    required
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="grid_connection"
+                    checked={formData.grid_connection}
+                    onChange={handleChange}
+                    className="sr-only peer"
                   />
-                </div>
-                <div>
-                  <Label htmlFor="otherLosses">Other Losses (%)</Label>
-                  <Input
-                    id="otherLosses"
-                    type="number"
-                    value={systemLosses.otherLosses}
-                    onChange={(e) => setSystemLosses({ ...systemLosses, otherLosses: e.target.value })}
-                    required
-                  />
-                </div>
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                </label>
               </div>
-              <h4 className="text-md font-medium mt-6 mb-2">Battery Storage</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="batteryCapacity">Battery Capacity (kWh)</Label>
-                  <Input
-                    id="batteryCapacity"
-                    type="number"
-                    value={batteryStorage.capacity}
-                    onChange={(e) => setBatteryStorage({ ...batteryStorage, capacity: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="depthOfDischarge">Depth of Discharge (%)</Label>
-                  <Input
-                    id="depthOfDischarge"
-                    type="number"
-                    value={batteryStorage.depthOfDischarge}
-                    onChange={(e) => setBatteryStorage({ ...batteryStorage, depthOfDischarge: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="chargeRate">Charge Rate (kW)</Label>
-                  <Input
-                    id="chargeRate"
-                    type="number"
-                    value={batteryStorage.chargeRate}
-                    onChange={(e) => setBatteryStorage({ ...batteryStorage, chargeRate: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="dischargeRate">Discharge Rate (kW)</Label>
-                  <Input
-                    id="dischargeRate"
-                    type="number"
-                    value={batteryStorage.dischargeRate}
-                    onChange={(e) => setBatteryStorage({ ...batteryStorage, dischargeRate: e.target.value })}
-                    required
-                  />
-                </div>
+              <div className="mt-6 p-4 bg-gray-50 rounded-md">
+                <h3 className="font-medium text-gray-800 mb-2">Configuration Summary</h3>
+                <ul className="space-y-2 text-sm">
+                  <li><strong>Solar Capacity:</strong> {formData.solar_capacity} kW</li>
+                  <li><strong>Panel Efficiency:</strong> {formData.panel_efficiency}</li>
+                  <li><strong>Battery Capacity:</strong> {formData.battery_capacity} kWh</li>
+                  <li><strong>Battery Efficiency:</strong> {formData.battery_efficiency}</li>
+                  <li><strong>Grid Connection:</strong> {formData.grid_connection ? "Enabled" : "Disabled"}</li>
+                  <li><strong>Location:</strong> {formData.latitude ? `${formData.latitude.toFixed(4)}, ${formData.longitude.toFixed(4)}` : "Not set"}</li>
+                </ul>
               </div>
-            </CardContent>
-          </Card>
-        );
+            </div>
+          </div>
+        )
+
       default:
-        return null;
+        return null
     }
-  };
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="max-w-2xl w-full space-y-8 bg-white p-8 rounded-lg shadow-lg">
-        <div className="text-center">
-          {step === 1 && <FaHome className="mx-auto h-12 w-12 text-teal-600" />}
-          {step === 2 && <FaSolarPanel className="mx-auto h-12 w-12 text-teal-600" />}
-          {step === 3 && <FaBolt className="mx-auto h-12 w-12 text-teal-600" />}
-          {step === 4 && <FaBatteryFull className="mx-auto h-12 w-12 text-teal-600" />}
-          <h2 className="mt-6 text-3xl font-bold text-teal-600">System Configuration</h2>
-          <p className="mt-2 text-sm text-gray-600">Step {step} of 4</p>
+      <div className="max-w-2xl w-full">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold text-teal-600">Household Energy System Setup</h1>
+          <p className="text-gray-600">Configure your energy system to get started</p>
+
+          {/* Progress indicator */}
+          <div className="flex justify-between items-center mt-4">
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div className="bg-teal-600 h-2.5 rounded-full" style={{ width: `${(step / 3) * 100}%` }}></div>
+            </div>
+            <span className="ml-4 text-sm font-medium text-gray-700">Step {step} of 3</span>
+          </div>
         </div>
-        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-          {renderStep()}
-          <div className="flex justify-between">
+
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md mb-4 flex items-start">
+            <FaExclamationTriangle className="h-5 w-5 mr-2 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          {renderStepContent()}
+
+          <div className="mt-6 flex justify-between">
             {step > 1 && (
-              <Button
+              <button
                 type="button"
                 onClick={() => setStep(step - 1)}
-                className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-teal-700 bg-teal-100 hover:bg-teal-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+                className="flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-teal-700 bg-teal-100 hover:bg-teal-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors duration-200"
               >
-                Previous
-              </Button>
+                <FaArrowLeft className="mr-2" /> Previous
+              </button>
             )}
-            <Button
+
+            <button
               type="submit"
-              className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+              className={`flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors duration-200 disabled:opacity-50 ${step === 1 ? "ml-auto" : ""}`}
+              disabled={loading}
             >
-              {step === 4 ? 'Submit' : 'Next'}
-            </Button>
+              {step < 3 ? (
+                <>
+                  Next <FaArrowRight className="ml-2" />
+                </>
+              ) : loading ? (
+                "Configuring..."
+              ) : (
+                "Complete Setup"
+              )}
+            </button>
           </div>
         </form>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Configuration;
+export default Configuration

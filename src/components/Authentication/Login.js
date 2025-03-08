@@ -1,25 +1,38 @@
-import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FaUser, FaLock, FaFingerprint } from 'react-icons/fa';
-import { useAuth } from '../../contexts/AuthContext';
+"use client"
+
+import { useState, useEffect } from "react"
+import { Link, useNavigate } from "react-router-dom"
+import { FaUser, FaLock, FaFingerprint } from "react-icons/fa"
+import { useAuth } from "../../contexts/AuthContext"
 
 const Login = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const { login, loading, successMessage } = useAuth(); // Get successMessage from context
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const { login, loading, error, successMessage, clearMessages } = useAuth()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    // Clear any previous messages when component mounts
+    clearMessages()
+  }, [clearMessages])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      await login(username, password)
-      navigate("/dashboard")
+      const user = await login(username, password)
+      if (user) {
+        // Redirect based on configuration status
+        if (user.is_configured) {
+          navigate("/dashboard")
+        } else {
+          navigate("/configuration")
+        }
+      }
     } catch (error) {
-      alert(`Login failed: ${error.response?.data?.msg || "An error occurred"}`)
+      // Error is handled in AuthContext
+      console.error("Login failed:", error)
     }
   }
-
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
@@ -27,19 +40,27 @@ const Login = () => {
         <div className="text-center">
           <FaFingerprint className="mx-auto h-12 w-12 text-teal-600" />
           <h2 className="mt-6 text-3xl font-bold text-teal-600">Welcome Back</h2>
-          <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
+          <p className="mt-2 text-sm text-gray-600">Sign in to access your account</p>
         </div>
 
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
+
         {successMessage && (
-          <div className="bg-green-100 text-green-800 p-4 rounded-md mb-4">
-            {successMessage}
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
+            <span className="block sm:inline">{successMessage}</span>
           </div>
         )}
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
-              <label htmlFor="username" className="sr-only">Username</label>
+              <label htmlFor="username" className="sr-only">
+                Username
+              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <FaUser className="h-5 w-5 text-gray-400" />
@@ -48,16 +69,20 @@ const Login = () => {
                   id="username"
                   name="username"
                   type="text"
+                  autoComplete="username"
                   required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
+                  className="appearance-none rounded-t-md relative block w-full px-3 py-2 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
                   placeholder="Username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                 />
               </div>
             </div>
+
             <div>
-              <label htmlFor="password" className="sr-only">Password</label>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <FaLock className="h-5 w-5 text-gray-400" />
@@ -68,7 +93,7 @@ const Login = () => {
                   type="password"
                   autoComplete="current-password"
                   required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
+                  className="appearance-none rounded-b-md relative block w-full px-3 py-2 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
                   placeholder="Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -103,7 +128,7 @@ const Login = () => {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors duration-200 disabled:opacity-50"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? "Signing in..." : "Sign in"}
             </button>
           </div>
         </form>
@@ -116,11 +141,14 @@ const Login = () => {
         </div>
 
         <p className="mt-2 text-center text-sm">
-          <Link to="/" className="text-teal-600 hover:underline">Back to Home</Link>
+          <Link to="/" className="text-teal-600 hover:underline">
+            Back to Home
+          </Link>
         </p>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Login;
+export default Login
+
