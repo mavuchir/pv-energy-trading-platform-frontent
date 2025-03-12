@@ -1,44 +1,36 @@
 import axios from "axios"
 
-// Create axios instance with base URL
+// Create axios instance
 const api = axios.create({
   baseURL: "http://localhost:5000",
   headers: {
     "Content-Type": "application/json",
   },
-  withCredentials: true,
 })
 
-// Add request interceptor to add auth token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token")
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  },
-)
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token")
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
 
-// Add response interceptor to handle errors
+// Add response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response) {
-      // Handle specific error cases
-      switch (error.response.status) {
-        case 401:
-          // Handle unauthorized
-          localStorage.removeItem("token")
-          break
-        case 403:
-          // Handle forbidden
-          break
-        default:
-          break
+    // Handle token expiration
+    if (error.response && error.response.status === 401) {
+      // Check if the error is due to an expired token
+      if (error.response.data.msg === "Token has expired") {
+        // Clear local storage
+        localStorage.removeItem("token")
+        localStorage.removeItem("user")
+
+        // Redirect to login page
+        window.location.href = "/login"
       }
     }
     return Promise.reject(error)

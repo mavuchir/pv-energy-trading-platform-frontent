@@ -1,15 +1,24 @@
-import React, { useState, useEffect, useCallback } from "react"
-import axios from 'axios'
-import { useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/Card"
-import { Button } from "../components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs"
-import { Switch } from "../components/ui/switch"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts"
-import { Sun, Cloud, Battery, Zap } from 'lucide-react'
+"use client"
 
-const SolarSimulationPage = () => {
-  const navigate = useNavigate()
+import { useState, useEffect, useCallback } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card"
+import { Button } from "../components/ui/button"
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Area,
+  AreaChart,
+} from "recharts"
+import { Sun, Cloud, Battery, Zap } from "lucide-react"
+import api from "../config/axios"
+
+const SolarSimulation = () => {
   const [realTimeData, setRealTimeData] = useState(null)
   const [historicalData, setHistoricalData] = useState([])
   const [systemStatus, setSystemStatus] = useState(null)
@@ -18,37 +27,90 @@ const SolarSimulationPage = () => {
 
   const fetchRealTimeData = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await axios.get('http://localhost:5000/api/energy/real-time', {
-        headers: { Authorization: `Bearer ${token}` }
+      // Use the household status endpoint instead of real-time
+      const statusResponse = await api.get("/household/status")
+      const dashboardResponse = await api.get("/household/dashboard")
+
+      // Transform the data to match our needs
+      setRealTimeData({
+        generation: statusResponse.data.current_generation * 1000, // Convert kW to W
+        consumption: statusResponse.data.current_consumption * 1000,
+        batteryLevel: statusResponse.data.battery_status.percentage,
+        gridStatus: statusResponse.data.grid_status,
       })
-      
-      setRealTimeData(response.data.current)
-      setHistoricalData(response.data.historical)
-      setSystemStatus(response.data.systemStatus)
+
+      // Transform historical data
+      if (dashboardResponse.data.energy_forecast) {
+        setHistoricalData(
+          dashboardResponse.data.energy_forecast.map((item) => ({
+            timestamp: item.time,
+            generation: item.generation * 1000,
+            consumption: item.consumption * 1000,
+          })),
+        )
+      }
+
+      // Set system status including weather data
+      setSystemStatus({
+        efficiency: statusResponse.data.panel_efficiency * 100,
+        weather: dashboardResponse.data.weather || {
+          temperature: 20,
+          cloudCover: 50,
+          irradiance: 500,
+        },
+      })
+
+      setError(null)
     } catch (error) {
-      console.error('Error fetching real-time data:', error)
-      setError(error.response?.data?.message || 'Error fetching data')
+      console.error("Error fetching data:", error)
+      setError(error.response?.data?.msg || "Error fetching data")
     }
   }, [])
 
   useEffect(() => {
     fetchRealTimeData()
-    // Update real-time data every 5 seconds
-    const interval = setInterval(fetchRealTimeData, 5000)
+    // Update real-time data every 30 seconds
+    const interval = setInterval(fetchRealTimeData, 30000)
     return () => clearInterval(interval)
   }, [fetchRealTimeData])
 
-  if (loading) {
-    return <div className="loading-spinner" />
+  const handleSimulation = async () => {
+    try {
+      setLoading(true)
+      await api.post("/household/simulate-smart-meter", {
+        duration_minutes: 60,
+        interval_seconds: 60,
+      })
+      await fetchRealTimeData() // Refresh data after simulation
+      setError(null)
+    } catch (err) {
+      console.error("Simulation error:", err)
+      setError(err.response?.data?.msg || "Failed to run simulation")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  if (error) {
-    return <div className="error-message">{error}</div>
+  if (loading && !realTimeData) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+      </div>
+    )
   }
 
   return (
     <div className="container mx-auto p-4">
+      {error && (
+        <Card className="mb-6 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center text-red-600">
+              <p>{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Real-time Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card>
@@ -59,12 +121,8 @@ const SolarSimulationPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {realTimeData?.generation.toFixed(2)} W
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Efficiency: {systemStatus?.efficiency}%
-            </p>
+            <div className="text-2xl font-bold">{realTimeData?.generation?.toFixed(2) || "0"} W</div>
+            <p className="text-sm text-muted-foreground">Efficiency: {systemStatus?.efficiency?.toFixed(1) || "0"}%</p>
           </CardContent>
         </Card>
 
@@ -76,12 +134,8 @@ const SolarSimulationPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {realTimeData?.consumption.toFixed(2)} W
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Grid Status: {realTimeData?.gridStatus}
-            </p>
+            <div className="text-2xl font-bold">{realTimeData?.consumption?.toFixed(2) || "0"} W</div>
+            <p className="text-sm text-muted-foreground">Grid Status: {realTimeData?.gridStatus || "Unknown"}</p>
           </CardContent>
         </Card>
 
@@ -93,13 +147,11 @@ const SolarSimulationPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {realTimeData?.batteryLevel.toFixed(1)}%
-            </div>
+            <div className="text-2xl font-bold">{realTimeData?.batteryLevel?.toFixed(1) || "0"}%</div>
             <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div 
-                className="bg-green-600 h-2.5 rounded-full" 
-                style={{ width: `${realTimeData?.batteryLevel}%` }}
+              <div
+                className="bg-green-600 h-2.5 rounded-full"
+                style={{ width: `${realTimeData?.batteryLevel || 0}%` }}
               ></div>
             </div>
           </CardContent>
@@ -113,11 +165,9 @@ const SolarSimulationPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {systemStatus?.weather.temperature.toFixed(1)}°C
-            </div>
+            <div className="text-2xl font-bold">{systemStatus?.weather?.temperature?.toFixed(1) || "0"}°C</div>
             <p className="text-sm text-muted-foreground">
-              Cloud Cover: {systemStatus?.weather.cloudCover.toFixed(1)}%
+              Cloud Cover: {systemStatus?.weather?.cloudCover?.toFixed(1) || "0"}%
             </p>
           </CardContent>
         </Card>
@@ -127,7 +177,9 @@ const SolarSimulationPage = () => {
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Live Energy Flow</CardTitle>
-          <CardDescription>Real-time generation vs consumption</CardDescription>
+          <Button onClick={handleSimulation} disabled={loading}>
+            {loading ? "Running Simulation..." : "Run Simulation"}
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="h-[400px]">
@@ -138,21 +190,23 @@ const SolarSimulationPage = () => {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Area 
-                  type="monotone" 
-                  dataKey="generation" 
+                <Area
+                  type="monotone"
+                  dataKey="generation"
                   stackId="1"
-                  stroke="#4ade80" 
-                  fill="#4ade80" 
+                  stroke="#4ade80"
+                  fill="#4ade80"
                   fillOpacity={0.3}
+                  name="Generation (W)"
                 />
-                <Area 
-                  type="monotone" 
-                  dataKey="consumption" 
+                <Area
+                  type="monotone"
+                  dataKey="consumption"
                   stackId="2"
-                  stroke="#f43f5e" 
-                  fill="#f43f5e" 
+                  stroke="#f43f5e"
+                  fill="#f43f5e"
                   fillOpacity={0.3}
+                  name="Consumption (W)"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -167,20 +221,23 @@ const SolarSimulationPage = () => {
             <CardTitle>Battery Level Trend</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={historicalData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="timestamp" />
-                <YAxis />
-                <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey="batteryLevel" 
-                  stroke="#fbbf24" 
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={historicalData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="timestamp" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="batteryLevel"
+                    stroke="#fbbf24"
+                    strokeWidth={2}
+                    name="Battery Level (%)"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
@@ -189,26 +246,18 @@ const SolarSimulationPage = () => {
             <CardTitle>Energy Balance</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={historicalData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="timestamp" />
-                <YAxis />
-                <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey="generation" 
-                  stroke="#4ade80" 
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="consumption" 
-                  stroke="#f43f5e" 
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={historicalData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="timestamp" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="generation" stroke="#4ade80" strokeWidth={2} name="Generation (W)" />
+                  <Line type="monotone" dataKey="consumption" stroke="#f43f5e" strokeWidth={2} name="Consumption (W)" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -216,4 +265,5 @@ const SolarSimulationPage = () => {
   )
 }
 
-export default SolarSimulationPage
+export default SolarSimulation
+
