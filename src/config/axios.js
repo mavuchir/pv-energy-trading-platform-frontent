@@ -6,6 +6,8 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  // Add withCredentials for CORS with credentials
+  withCredentials: true,
 })
 
 // Add auth token to requests
@@ -21,10 +23,23 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Handle token expiration
-    if (error.response && error.response.status === 401) {
-      // Check if the error is due to an expired token
-      if (error.response.data.msg === "Token has expired") {
+    console.error("API Error:", error)
+
+    // Handle network errors
+    if (!error.response) {
+      console.error("Network error - no response received")
+      return Promise.reject(new Error("Network error. Please check your connection."))
+    }
+
+    // Handle token expiration or invalid token
+    if (error.response && (error.response.status === 401 || error.response.status === 422)) {
+      // Check if the error is due to an expired or invalid token
+      if (
+        error.response.data.msg === "Token has expired" ||
+        error.response.data.msg === "Invalid user ID in token" ||
+        error.response.data.msg === "Token has been revoked"
+      ) {
+        console.log("Authentication error, clearing token and redirecting to login")
         // Clear local storage
         localStorage.removeItem("token")
         localStorage.removeItem("user")
@@ -33,6 +48,7 @@ api.interceptors.response.use(
         window.location.href = "/login"
       }
     }
+
     return Promise.reject(error)
   },
 )

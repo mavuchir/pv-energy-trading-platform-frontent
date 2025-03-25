@@ -13,6 +13,7 @@ import UserManagement from "./pages/UserManagement";
 import SystemSettings from "./pages/SystemSettings";
 import ProtectedRoute from "./components/Authentication/ProtectedRoute";
 import Home from "./pages/Home"
+import Community from "./pages/Community"
 
 const AppRoutes = () => {
   return (
@@ -40,6 +41,7 @@ const AppRoutes = () => {
         <Route path="/settings" element={<Settings />} />
         <Route path="/user-management" element={<UserManagement />} />
         <Route path="/system-settings" element={<SystemSettings />} />
+        <Route path="/community" element={<Community/>}/>
       </Route>
     </Routes>
   );

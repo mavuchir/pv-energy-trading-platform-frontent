@@ -1,3 +1,5 @@
+"use client"
+
 import { Link, useLocation } from "react-router-dom"
 import { useAuth } from "../../contexts/AuthContext"
 import { useNavigation } from "../../contexts/NavigationContext"
@@ -18,7 +20,7 @@ const NAV_ITEMS = [
     path: "/solar-simulation",
     icon: Sun,
     roles: ["household"],
-    description: "Simulate solar panel performance",
+    description: "Monitor solar panel performance",
   },
   {
     name: "Trading Platform",
@@ -33,6 +35,13 @@ const NAV_ITEMS = [
     icon: Sliders,
     roles: ["household"],
     description: "Manage your appliances",
+  },
+  {
+    name: "Community",
+    path: "/community",
+    icon: Users,
+    roles: ["household"],
+    description: "Connect with energy community",
   },
   {
     name: "Analytics",
@@ -55,14 +64,21 @@ const NAV_ITEMS = [
     roles: ["admin"],
     description: "Manage system users",
   },
+  {
+    name: "Demo Controls",
+    path: "/demo-control",
+    icon: Sliders,
+    roles: ["admin"],
+    description: "System simulation controls",
+  },
 ]
 
 const Sidebar = () => {
   const { user, logout } = useAuth()
   const location = useLocation()
-  const { isSidebarOpen } = useNavigation()
+  const { isSidebarOpen, toggleSidebar } = useNavigation()
 
-  const filteredNavItems = NAV_ITEMS.filter((item) => item.roles.includes(user?.role))
+  const filteredNavItems = NAV_ITEMS.filter((item) => item.roles.includes(user?.role || "household"))
 
   if (!user) return null
 
@@ -76,8 +92,8 @@ const Sidebar = () => {
     >
       <div className="flex flex-col h-full">
         <div className="p-4 border-b">
-          <h1 className="text-xl font-semibold text-teal-600">Energy Trading</h1>
-          <p className="text-sm text-gray-500">Welcome, {user.name}</p>
+          <h1 className="text-xl font-semibold text-teal-600">Energy Management</h1>
+          <p className="text-sm text-gray-500">Welcome, {user.name || user.username}</p>
         </div>
 
         <ScrollArea className="flex-1 py-2">

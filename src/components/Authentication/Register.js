@@ -1,9 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { FaEnvelope, FaLock, FaUser, FaFingerprint, FaPhone, FaMapMarkerAlt, FaIdCard } from "react-icons/fa"
+import {
+  FaEnvelope,
+  FaLock,
+  FaUser,
+  FaFingerprint,
+  FaPhone,
+  FaMapMarkerAlt,
+  FaIdCard,
+  FaExclamationTriangle,
+} from "react-icons/fa"
 import { useAuth } from "../../contexts/AuthContext"
+import api from "../../config/axios"
 
 const Register = () => {
   const [username, setUsername] = useState("")
@@ -13,14 +23,26 @@ const Register = () => {
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
   const [location, setLocation] = useState("")
+  const [formError, setFormError] = useState("")
 
-  const { register, loading, error, setUser } = useAuth()
+  const { register, loading, error, setUser, clearMessages } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    // Clear any error or success messages when component unmounts
+    return () => {
+      if (clearMessages) {
+        clearMessages()
+      }
+    }
+  }, [clearMessages])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setFormError("")
+
     if (password !== confirmPassword) {
-      alert("Passwords don't match")
+      setFormError("Passwords don't match")
       return
     }
 
@@ -36,13 +58,27 @@ const Register = () => {
         role: "household", // Explicitly set role to household
       }
 
-      // Register the user with all fields
-      await register(userData)
+      console.log("Submitting registration form with data:", {
+        ...userData,
+        password: "********", // Don't log the actual password
+      })
+
+      // Use axios directly to avoid CORS issues
+      const response = await api.post("/auth/register", userData)
+      console.log("Registration successful, response:", response.data)
+
+      // Show success message
+      setFormError("")
+      alert("Registration successful! Please log in.")
+
       // Navigate to login page after successful registration
       navigate("/login")
     } catch (error) {
-      // Error is handled in AuthContext
-      console.error("Registration failed:", error)
+      console.error("Registration failed in component:", error)
+
+      // Extract error message
+      const errorMessage = error.response?.data?.msg || error.message || "Registration failed. Please try again."
+      setFormError(errorMessage)
     }
   }
 
@@ -55,9 +91,13 @@ const Register = () => {
           <p className="mt-2 text-sm text-gray-600">Join our community and start trading energy</p>
         </div>
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <span className="block sm:inline">{error}</span>
+        {(error || formError) && (
+          <div
+            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative flex items-start"
+            role="alert"
+          >
+            <FaExclamationTriangle className="h-5 w-5 mr-2 mt-0.5" />
+            <span className="block sm:inline">{formError || error}</span>
           </div>
         )}
 

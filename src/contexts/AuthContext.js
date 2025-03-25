@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect } from "react"
-import axios from "axios"
+import api from "../config/axios"
 
 const AuthContext = createContext()
 
@@ -18,43 +18,39 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem("token")
     if (token) {
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`
     }
-
-    // Add response interceptor for handling token expiration
-    axios.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response && error.response.status === 401) {
-          // Token expired or invalid
-          logout()
-        }
-        return Promise.reject(error)
-      },
-    )
   }, [])
 
   useEffect(() => {
     const token = localStorage.getItem("token")
     if (token) {
-      fetchUser(token)
+      fetchUser()
     } else {
       setLoading(false)
     }
   }, [])
 
-  const fetchUser = async (token) => {
+  const fetchUser = async () => {
     try {
-      const response = await axios.get("/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      console.log("Fetching current user data...")
+      const response = await api.get("/auth/me")
+      console.log("User data received:", response.data)
       setUser(response.data)
       setIsConfigured(response.data.is_configured || false)
       setError(null)
     } catch (error) {
       console.error("Error fetching user:", error)
-      localStorage.removeItem("token")
-      setError("Session expired. Please login again.")
+
+      // Check for CORS errors
+      if (error.message && error.message.includes("Network Error")) {
+        setError("Network error. This might be a CORS issue.")
+      } else if (error.response?.status === 401) {
+        localStorage.removeItem("token")
+        setError("Session expired. Please login again.")
+      } else {
+        setError("Failed to load user data. Please try again.")
+      }
     } finally {
       setLoading(false)
     }
@@ -64,8 +60,14 @@ export const AuthProvider = ({ children }) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await axios.post("/auth/login", { username, password })
-      localStorage.setItem("token", response.data.access_token)
+      console.log("Attempting login with username:", username)
+      const response = await api.post("/auth/login", { username, password })
+      console.log("Login response:", response.data)
+
+      // Store the token and set it in axios defaults
+      const token = response.data.token
+      localStorage.setItem("token", token)
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`
 
       setUser(response.data.user)
       setIsConfigured(response.data.user.is_configured || false)
@@ -73,7 +75,11 @@ export const AuthProvider = ({ children }) => {
       return response.data.user
     } catch (error) {
       console.error("Login error:", error)
-      if (error.response?.data?.msg) {
+
+      // Check for CORS errors
+      if (error.message && error.message.includes("Network Error")) {
+        setError("Network error. This might be a CORS issue.")
+      } else if (error.response?.data?.msg) {
         setError(error.response.data.msg)
       } else {
         setError("Login failed. Please try again.")
@@ -86,21 +92,40 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     setLoading(true)
+    setError(null)
     try {
-      // Make sure role is set to household
-      const data = {
+      console.log("Sending registration data:", {
         ...userData,
-        role: "household",
-      }
+        password: "[REDACTED]",
+      })
 
-      const response = await axios.post("/auth/register", data)
+      const response = await api.post("/auth/register", userData)
+      console.log("Registration response:", response.status)
 
       setSuccessMessage("Registration successful!")
-      return response.data.user
+      return response.data
     } catch (error) {
       console.error("Registration error:", error)
-      const errorMessage = error.response?.data?.msg || error.response?.data?.message || "Registration failed"
-      throw new Error(errorMessage)
+
+      // Detailed error logging
+      if (error.message) {
+        console.error("Error message:", error.message)
+      }
+      if (error.response) {
+        console.error("Response status:", error.response.status)
+        console.error("Response data:", error.response.data)
+      }
+
+      // Check for CORS errors
+      if (error.message && error.message.includes("Network Error")) {
+        const errorMessage = "Network error. This might be a CORS issue."
+        setError(errorMessage)
+        throw new Error(errorMessage)
+      } else {
+        const errorMessage = error.response?.data?.msg || error.response?.data?.message || "Registration failed"
+        setError(errorMessage)
+        throw new Error(errorMessage)
+      }
     } finally {
       setLoading(false)
     }
@@ -108,7 +133,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem("token")
-    delete axios.defaults.headers.common["Authorization"]
+    delete api.defaults.headers.common["Authorization"]
     setUser(null)
     setIsConfigured(false)
     setSuccessMessage("")
@@ -119,13 +144,17 @@ export const AuthProvider = ({ children }) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await axios.put("/auth/update", userData)
+      const response = await api.put("/auth/update-profile", userData)
       setUser(response.data.user)
       setSuccessMessage("Profile updated successfully!")
       return response.data.user
     } catch (error) {
       console.error("Profile update error:", error)
-      if (error.response && error.response.data && error.response.data.msg) {
+
+      // Check for CORS errors
+      if (error.message && error.message.includes("Network Error")) {
+        setError("Network error. This might be a CORS issue.")
+      } else if (error.response && error.response.data && error.response.data.msg) {
         setError(error.response.data.msg)
       } else {
         setError("Profile update failed. Please try again.")
@@ -140,14 +169,38 @@ export const AuthProvider = ({ children }) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await axios.post("/household/configuration", configData)
+      // Ensure token is set in headers
+      const token = localStorage.getItem("token")
+      if (!token) {
+        throw new Error("Authentication token is missing. Please log in again.")
+      }
+
+      // Double-check that the token is in the headers
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`
+
+      console.log("Sending configuration with token:", token.substring(0, 10) + "...")
+
+      const response = await api.post("/household/configuration", configData)
       setIsConfigured(true)
-      setUser(response.data.user)
+
+      // Update user data if returned
+      if (response.data.user) {
+        setUser(response.data.user)
+      }
+
       setSuccessMessage("Household configured successfully!")
       return response.data
     } catch (error) {
       console.error("Configuration error:", error)
-      if (error.response && error.response.data && error.response.data.msg) {
+
+      // Check for auth errors
+      if (error.response?.status === 401) {
+        setError("Authentication failed. Please log in again.")
+        // Force logout on auth failure
+        logout()
+      } else if (error.message && error.message.includes("Network Error")) {
+        setError("Network error. This might be a CORS issue.")
+      } else if (error.response && error.response.data && error.response.data.msg) {
         setError(error.response.data.msg)
       } else {
         setError("Configuration failed. Please try again.")
@@ -181,6 +234,5 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
-axios.defaults.baseURL = API_URL
+export default AuthProvider
 

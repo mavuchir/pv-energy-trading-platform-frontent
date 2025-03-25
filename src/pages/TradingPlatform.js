@@ -1,3 +1,5 @@
+"use client"
+
 import { useState, useEffect } from "react"
 import TradingPlatformComponent from "../components/TradingPlatform/TradingPlatform"
 import { Card, CardContent } from "../components/ui/Card"
@@ -75,3 +77,4 @@ const TradingPlatform = () => {
 }
 
 export default TradingPlatform
+

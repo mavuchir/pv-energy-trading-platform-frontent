@@ -13,25 +13,10 @@ import {
   FaLightbulb,
   FaTrash,
   FaPlus,
+  FaSpinner,
 } from "react-icons/fa"
-import axios from "axios"
-
-// Create axios instance
-const api = axios.create({
-  baseURL: "http://localhost:5000",
-  headers: {
-    "Content-Type": "application/json",
-  },
-})
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token")
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
+import api from "../../config/axios"
+import { useAuth } from "../../contexts/AuthContext"
 
 // Common appliance presets for quick selection
 const APPLIANCE_PRESETS = [
@@ -58,6 +43,7 @@ const Configuration = () => {
     latitude: "",
     longitude: "",
     location: "",
+    phone: "", // Added phone field
   })
   const [appliances, setAppliances] = useState([
     { name: "Refrigerator", power_consumption: 150, daily_usage_hours: 24 },
@@ -72,8 +58,34 @@ const Configuration = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [locationLoading, setLocationLoading] = useState(false)
+  const [applianceSaveStatus, setApplianceSaveStatus] = useState(null)
+  const [debugInfo, setDebugInfo] = useState(null) // For debugging
 
   const navigate = useNavigate()
+  const { user, configureHousehold, logout, clearMessages } = useAuth()
+
+  // Check for authentication on component mount
+  useEffect(() => {
+    const token = localStorage.getItem("token")
+    if (!token) {
+      setError("You must be logged in to configure your household")
+      navigate("/login")
+    } else {
+      // Ensure token is set in axios headers
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`
+
+      // If user data is available, pre-fill the form
+      if (user) {
+        setFormData((prev) => ({
+          ...prev,
+          phone: user.phone || "",
+          location: user.location || "",
+          latitude: user.latitude || "",
+          longitude: user.longitude || "",
+        }))
+      }
+    }
+  }, [navigate, user])
 
   useEffect(() => {
     // Try to get user's location
@@ -98,6 +110,16 @@ const Configuration = () => {
       )
     }
   }, [])
+
+  // Add this after the other useEffect hooks
+  useEffect(() => {
+    // Clear any error or success messages when component unmounts
+    return () => {
+      if (clearMessages) {
+        clearMessages()
+      }
+    }
+  }, [clearMessages])
 
   const fetchLocationName = async (lat, lon) => {
     try {
@@ -204,22 +226,75 @@ const Configuration = () => {
 
     setLoading(true)
     setError(null)
+    setApplianceSaveStatus(null)
+    setDebugInfo(null)
 
     try {
-      // First save the household configuration
-      const configResponse = await api.post("/household/configuration", formData)
-      console.log("Configuration response:", configResponse.data)
+      // Check if token exists
+      const token = localStorage.getItem("token")
+      if (!token) {
+        setError("Authentication token is missing. Please log in again.")
+        navigate("/login")
+        return
+      }
 
-      // Then add all appliances
-      for (const appliance of appliances) {
-        await api.post("/appliance/add", appliance)
+      // Ensure the token is in the headers
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`
+
+      console.log("Submitting configuration:", formData)
+      console.log("Appliances to save:", appliances)
+
+      // First save the household configuration
+      try {
+        const configResponse = await api.post("/household/configuration", formData)
+        console.log("Configuration response:", configResponse.data)
+        setDebugInfo((prev) => ({ ...prev, configResponse: configResponse.data }))
+      } catch (configError) {
+        console.error("Configuration error:", configError)
+        setDebugInfo((prev) => ({
+          ...prev,
+          configError: configError.toString(),
+          configErrorResponse: configError.response?.data,
+        }))
+        throw configError
+      }
+
+      // Then save all appliances
+      try {
+        // First, clear existing appliances to avoid duplicates
+        await api.delete("/appliance/clear-all")
+
+        // Then add each appliance individually
+        for (const appliance of appliances) {
+          await api.post("/appliance/add", appliance)
+        }
+
+        setApplianceSaveStatus({ success: true, message: "All appliances saved successfully" })
+      } catch (applianceError) {
+        console.error("Error saving appliances:", applianceError)
+        setApplianceSaveStatus({
+          success: false,
+          message: "Some appliances could not be saved",
+          error: applianceError.toString(),
+        })
+        // Continue anyway - we'll just warn the user
       }
 
       // Navigate to dashboard after successful configuration
       navigate("/dashboard")
     } catch (err) {
       console.error("Configuration error:", err)
-      setError(err.response?.data?.msg || "Failed to configure household. Please try again.")
+
+      if (err.response?.status === 401) {
+        setError("Authentication failed. Please log in again.")
+        // Redirect to login after a short delay
+        setTimeout(() => {
+          logout()
+          navigate("/login")
+        }, 2000)
+      } else {
+        setError(err.response?.data?.msg || "Failed to configure household. Please try again.")
+      }
     } finally {
       setLoading(false)
     }
@@ -305,6 +380,17 @@ const Configuration = () => {
                     value={formData.location}
                     onChange={handleChange}
                     placeholder="Enter your location"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                  />
+                </div>
+                <div className="mt-2">
+                  <label className="block text-xs text-gray-500 mb-1">Phone Number</label>
+                  <input
+                    type="text"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="Enter your phone number"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
                   />
                 </div>
@@ -629,6 +715,24 @@ const Configuration = () => {
           </div>
         )}
 
+        {applianceSaveStatus && !applianceSaveStatus.success && (
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-md mb-4 flex items-start">
+            <FaExclamationTriangle className="h-5 w-5 mr-2 mt-0.5" />
+            <span>
+              {applianceSaveStatus.message || "Some appliances could not be saved. Your configuration will still work."}
+            </span>
+          </div>
+        )}
+
+        {debugInfo && (
+          <div className="bg-gray-100 border border-gray-300 text-gray-700 px-4 py-3 rounded-md mb-4 text-xs">
+            <details>
+              <summary>Debug Information (Click to expand)</summary>
+              <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+            </details>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           {renderStepContent()}
 
@@ -648,12 +752,15 @@ const Configuration = () => {
               className={`flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors duration-200 disabled:opacity-50 ${step === 1 ? "ml-auto" : ""}`}
               disabled={loading}
             >
-              {step < 4 ? (
+              {loading ? (
+                <>
+                  <FaSpinner className="animate-spin mr-2" />
+                  {step < 4 ? "Processing..." : "Configuring..."}
+                </>
+              ) : step < 4 ? (
                 <>
                   Next <FaArrowRight className="ml-2" />
                 </>
-              ) : loading ? (
-                "Configuring..."
               ) : (
                 "Complete Setup"
               )}

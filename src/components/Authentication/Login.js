@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { FaUser, FaLock, FaFingerprint } from "react-icons/fa"
+import { FaUser, FaLock, FaFingerprint, FaExclamationTriangle } from "react-icons/fa"
 import { useAuth } from "../../contexts/AuthContext"
+import api from "../../config/axios"
 
 const Login = () => {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [formError, setFormError] = useState("")
   const { login, loading, error, successMessage, clearMessages } = useAuth()
   const navigate = useNavigate()
 
@@ -18,19 +20,41 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setFormError("")
+
     try {
-      const user = await login(username, password)
-      if (user) {
+      console.log("Attempting login with username:", username)
+
+      // Use direct API call to avoid CORS issues
+      const response = await api.post("/auth/login", {
+        username,
+        password,
+      })
+
+      console.log("Login response:", response.data)
+
+      // Store token
+      if (response.data.token) {
+        localStorage.setItem("token", response.data.token)
+
+        // Set auth header for future requests
+        api.defaults.headers.common["Authorization"] = `Bearer ${response.data.token}`
+
         // Redirect based on configuration status
-        if (user.is_configured) {
+        if (response.data.user && response.data.user.is_configured) {
           navigate("/dashboard")
         } else {
           navigate("/configuration")
         }
+      } else {
+        setFormError("Login successful but no token received")
       }
-    } catch (error) {
-      // Error is handled in AuthContext
-      console.error("Login failed:", error)
+    } catch (err) {
+      console.error("Login error:", err)
+
+      // Extract error message
+      const errorMessage = err.response?.data?.msg || err.message || "Login failed. Please try again."
+      setFormError(errorMessage)
     }
   }
 
@@ -43,9 +67,13 @@ const Login = () => {
           <p className="mt-2 text-sm text-gray-600">Sign in to access your account</p>
         </div>
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <span className="block sm:inline">{error}</span>
+        {(error || formError) && (
+          <div
+            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative flex items-start"
+            role="alert"
+          >
+            <FaExclamationTriangle className="h-5 w-5 mr-2 mt-0.5" />
+            <span className="block sm:inline">{formError || error}</span>
           </div>
         )}
 

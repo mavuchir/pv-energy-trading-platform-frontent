@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import api from "../config/axios" // Ensure axios is correctly configured in this file
+import api from "../config/axios"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/Input"
@@ -337,3 +337,4 @@ const ApplianceControl = () => {
 }
 
 export default ApplianceControl
+
