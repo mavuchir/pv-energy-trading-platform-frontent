@@ -45,9 +45,11 @@ export const AuthProvider = ({ children }) => {
       // Check for CORS errors
       if (error.message && error.message.includes("Network Error")) {
         setError("Network error. This might be a CORS issue.")
+        // Don't logout on network errors
       } else if (error.response?.status === 401) {
-        localStorage.removeItem("token")
-        setError("Session expired. Please login again.")
+        console.log("Authentication error, but not logging out automatically")
+        setError("Session may have expired. Please try refreshing the page.")
+        // Don't automatically logout - let the user decide
       } else {
         setError("Failed to load user data. Please try again.")
       }

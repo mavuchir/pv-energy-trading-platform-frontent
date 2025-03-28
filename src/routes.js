@@ -14,6 +14,7 @@ import SystemSettings from "./pages/SystemSettings";
 import ProtectedRoute from "./components/Authentication/ProtectedRoute";
 import Home from "./pages/Home"
 import Community from "./pages/Community"
+import EnergyData from './pages/EnergyData'
 
 const AppRoutes = () => {
   return (
@@ -42,6 +43,14 @@ const AppRoutes = () => {
         <Route path="/user-management" element={<UserManagement />} />
         <Route path="/system-settings" element={<SystemSettings />} />
         <Route path="/community" element={<Community/>}/>
+        <Route
+            path="/energy-data"
+            element={
+              <ProtectedRoute>
+                <EnergyData />
+              </ProtectedRoute>
+            }
+          />
       </Route>
     </Routes>
   );

@@ -23,6 +23,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Don't automatically logout on 401 errors
+    // Just log the error and let the component handle it
+    if (error.response && error.response.status === 401) {
+      console.error("Authentication error:", error)
+      // Don't remove token here - let the component decide what to do
+      return Promise.reject(error)
+    }
+
     console.error("API Error:", error)
 
     // Handle network errors

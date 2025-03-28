@@ -51,6 +51,13 @@ const NAV_ITEMS = [
     description: "Detailed energy analytics",
   },
   {
+    name: "EnergyData",
+    path: "/energy-data",
+    icon: Users,
+    roles: ["household"],
+    description: "Connect with energy community",
+  },
+  {
     name: "Settings",
     path: "/settings",
     icon: Settings,
