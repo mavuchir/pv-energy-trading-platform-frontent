@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "../ui/Card"
+import { Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter } from "../ui/Card"
 import { Button } from "../ui/button"
 import { Input } from "../ui/Input"
 import { Label } from "../ui/label"
@@ -10,22 +10,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert"
 import { Switch } from "../ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/Table"
-import { AlertCircle, CheckCircle, Battery, Zap, TrendingUp, TrendingDown, RefreshCw, Lightbulb } from "lucide-react"
 import {
-  ResponsiveContainer,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  BarChart as RechartsBarChart,
-  Bar,
-  LineChart,
-  Line,
-} from "recharts"
+  AlertCircle,
+  CheckCircle,
+  Battery,
+  Zap,
+  TrendingUp,
+  TrendingDown,
+  Lightbulb,
+  Clock,
+  DollarSign,
+  BarChart3,
+} from "lucide-react"
 import TradingService from "../../services/trading"
 import EnergyService from "../../services/energy"
 
-const EnergyTrading = ({ defaultTab = "sell" }) => {
+const EnergyTrading = () => {
   const [userTrades, setUserTrades] = useState([])
   const [batteryStatus, setBatteryStatus] = useState(null)
   const [marketPrice, setMarketPrice] = useState(0)
@@ -335,89 +335,114 @@ const EnergyTrading = ({ defaultTab = "sell" }) => {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Energy Trading Platform</CardTitle>
-          <CardDescription>Buy and sell energy in the peer-to-peer marketplace</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue={defaultTab}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="sell">Sell Energy</TabsTrigger>
-              <TabsTrigger value="buy">Buy Energy</TabsTrigger>
-              <TabsTrigger value="history">Trading History</TabsTrigger>
-              <TabsTrigger value="optimize">Smart Optimization</TabsTrigger>
-            </TabsList>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold">Energy Trading</h2>
+          <p className="text-muted-foreground">Buy and sell energy in the peer-to-peer marketplace</p>
+        </div>
+        <div className="flex space-x-2">
+          <Button variant="outline" size="sm" onClick={fetchMarketData}>
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Market Data
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchBatteryStatus}>
+            <Battery className="h-4 w-4 mr-2" />
+            Battery Status
+          </Button>
+        </div>
+      </div>
 
-            {error && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-            {success && (
-              <Alert className="mb-4 bg-green-50 border-green-200">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <AlertTitle className="text-green-600">Success</AlertTitle>
-                <AlertDescription>{success}</AlertDescription>
-              </Alert>
-            )}
+      {success && (
+        <Alert className="bg-green-50 border-green-200">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertTitle className="text-green-600">Success</AlertTitle>
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
 
-            {recommendation && (
-              <Alert
-                className={`mb-4 
-                ${
-                  recommendation.decision === "store"
-                    ? "bg-blue-50 border-blue-200"
-                    : recommendation.decision === "sell_p2p"
-                      ? "bg-green-50 border-green-200"
-                      : recommendation.decision === "sell_grid"
-                        ? "bg-amber-50 border-amber-200"
-                        : "bg-gray-50 border-gray-200"
-                }`}
-              >
-                <Lightbulb
-                  className={`h-4 w-4 
-                  ${
-                    recommendation.decision === "store"
-                      ? "text-blue-600"
-                      : recommendation.decision === "sell_p2p"
-                        ? "text-green-600"
-                        : recommendation.decision === "sell_grid"
-                          ? "text-amber-600"
-                          : "text-gray-600"
-                  }`}
-                />
-                <AlertTitle
-                  className={`
-                  ${
-                    recommendation.decision === "store"
-                      ? "text-blue-600"
-                      : recommendation.decision === "sell_p2p"
-                        ? "text-green-600"
-                        : recommendation.decision === "sell_grid"
-                          ? "text-amber-600"
-                          : "text-gray-600"
-                  }`}
-                >
-                  Recommendation:{" "}
-                  {recommendation.decision === "store"
-                    ? "Store Energy"
-                    : recommendation.decision === "sell_p2p"
-                      ? "Sell on P2P Market"
-                      : recommendation.decision === "sell_grid"
-                        ? "Sell to Grid"
-                        : "No Recommendation"}
-                </AlertTitle>
-                <AlertDescription>{recommendation.reason}</AlertDescription>
-              </Alert>
-            )}
+      {recommendation && (
+        <Alert
+          className={`
+          ${
+            recommendation.decision === "store"
+              ? "bg-blue-50 border-blue-200"
+              : recommendation.decision === "sell_p2p"
+                ? "bg-green-50 border-green-200"
+                : recommendation.decision === "sell_grid"
+                  ? "bg-amber-50 border-amber-200"
+                  : "bg-gray-50 border-gray-200"
+          }`}
+        >
+          <Lightbulb
+            className={`h-4 w-4 
+            ${
+              recommendation.decision === "store"
+                ? "text-blue-600"
+                : recommendation.decision === "sell_p2p"
+                  ? "text-green-600"
+                  : recommendation.decision === "sell_grid"
+                    ? "text-amber-600"
+                    : "text-gray-600"
+            }`}
+          />
+          <AlertTitle
+            className={`
+            ${
+              recommendation.decision === "store"
+                ? "text-blue-600"
+                : recommendation.decision === "sell_p2p"
+                  ? "text-green-600"
+                  : recommendation.decision === "sell_grid"
+                    ? "text-amber-600"
+                    : "text-gray-600"
+            }`}
+          >
+            Recommendation:{" "}
+            {recommendation.decision === "store"
+              ? "Store Energy"
+              : recommendation.decision === "sell_p2p"
+                ? "Sell on P2P Market"
+                : recommendation.decision === "sell_grid"
+                  ? "Sell to Grid"
+                  : "No Recommendation"}
+          </AlertTitle>
+          <AlertDescription>{recommendation.reason}</AlertDescription>
+        </Alert>
+      )}
 
-            <TabsContent value="sell">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2">
+      <Tabs defaultValue="sell" className="w-full">
+        <TabsList className="w-full grid grid-cols-3 mb-6">
+          <TabsTrigger value="sell" className="flex items-center">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Sell Energy
+          </TabsTrigger>
+          <TabsTrigger value="buy" className="flex items-center">
+            <TrendingDown className="h-4 w-4 mr-2" />
+            Buy Energy
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center">
+            <Clock className="h-4 w-4 mr-2" />
+            Trading History
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="sell">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Sell Energy</CardTitle>
+                  <CardDescription>List your excess energy for sale on the marketplace</CardDescription>
+                </CardHeader>
+                <CardContent>
                   <form onSubmit={handleSellSubmit}>
                     <div className="space-y-4">
                       <div>
@@ -509,88 +534,102 @@ const EnergyTrading = ({ defaultTab = "sell" }) => {
                       </div>
                     </div>
                   </form>
-                </div>
-
-                <div>
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg">Battery Status</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {batteryStatus ? (
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <Battery className="h-8 w-8 text-primary" />
-                            <span className="text-2xl font-bold">{batteryStatus.percentage.toFixed(1)}%</span>
-                          </div>
-
-                          <div className="w-full bg-gray-200 rounded-full h-2.5">
-                            <div
-                              className="bg-primary h-2.5 rounded-full"
-                              style={{ width: `${batteryStatus.percentage}%` }}
-                            ></div>
-                          </div>
-
-                          <div className="text-sm">
-                            <p>Current charge: {batteryStatus.currentCharge.toFixed(2)} kWh</p>
-                            <p>Maximum capacity: {batteryStatus.maxCharge.toFixed(2)} kWh</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground">Loading battery status...</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <div className="mt-4">
-                    <h3 className="text-sm font-medium mb-2">Market Prices</h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-muted p-2 rounded">
-                        <p className="text-xs text-muted-foreground">Grid Buy</p>
-                        <p className="font-medium">${marketPrice.toFixed(4)}/kWh</p>
-                      </div>
-                      <div className="bg-muted p-2 rounded">
-                        <p className="text-xs text-muted-foreground">P2P</p>
-                        <p className="font-medium">${p2pPrice.toFixed(4)}/kWh</p>
-                      </div>
-                      <div className="bg-muted p-2 rounded">
-                        <p className="text-xs text-muted-foreground">Grid Sell</p>
-                        <p className="font-medium">${gridSellPrice.toFixed(4)}/kWh</p>
-                      </div>
-                      <div className="bg-muted p-2 rounded">
-                        <p className="text-xs text-muted-foreground">Potential Profit</p>
-                        <p className="font-medium text-green-600">
-                          ${((p2pPrice - gridSellPrice) * sellAmount).toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
+                </CardContent>
+                <CardFooter className="bg-gray-50 border-t">
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    <span>Estimated earnings: ${(sellAmount * p2pPrice).toFixed(2)}</span>
                   </div>
+                </CardFooter>
+              </Card>
+            </div>
 
-                  {optimalTimes && (
-                    <div className="mt-4">
-                      <h3 className="text-sm font-medium mb-2">Optimal Selling Time</h3>
-                      <div className="bg-green-50 p-3 rounded border border-green-200">
-                        <p className="text-sm">
-                          Best time to sell: <span className="font-medium">{optimalTimes.sell.hour}:00</span>
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Price: ${optimalTimes.sell.grid_sell_price.toFixed(4)}/kWh
-                        </p>
-                        <p className="text-xs text-green-600 mt-1">
-                          {optimalTimes.sell.grid_sell_price > gridSellPrice
-                            ? `${(((optimalTimes.sell.grid_sell_price - gridSellPrice) / gridSellPrice) * 100).toFixed(1)}% higher than current price`
-                            : "Current price is optimal"}
-                        </p>
+            <div>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">Battery Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {batteryStatus ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Battery className="h-8 w-8 text-primary" />
+                        <span className="text-2xl font-bold">{batteryStatus.percentage.toFixed(1)}%</span>
+                      </div>
+
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div
+                          className="bg-primary h-2.5 rounded-full"
+                          style={{ width: `${batteryStatus.percentage}%` }}
+                        ></div>
+                      </div>
+
+                      <div className="text-sm">
+                        <p>Current charge: {batteryStatus.currentCharge.toFixed(2)} kWh</p>
+                        <p>Maximum capacity: {batteryStatus.maxCharge.toFixed(2)} kWh</p>
                       </div>
                     </div>
+                  ) : (
+                    <p className="text-muted-foreground">Loading battery status...</p>
                   )}
+                </CardContent>
+              </Card>
+
+              <div className="mt-4">
+                <h3 className="text-sm font-medium mb-2">Market Prices</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-muted p-2 rounded">
+                    <p className="text-xs text-muted-foreground">Grid Buy</p>
+                    <p className="font-medium">${marketPrice.toFixed(4)}/kWh</p>
+                  </div>
+                  <div className="bg-muted p-2 rounded">
+                    <p className="text-xs text-muted-foreground">P2P</p>
+                    <p className="font-medium">${p2pPrice.toFixed(4)}/kWh</p>
+                  </div>
+                  <div className="bg-muted p-2 rounded">
+                    <p className="text-xs text-muted-foreground">Grid Sell</p>
+                    <p className="font-medium">${gridSellPrice.toFixed(4)}/kWh</p>
+                  </div>
+                  <div className="bg-muted p-2 rounded">
+                    <p className="text-xs text-muted-foreground">Potential Profit</p>
+                    <p className="font-medium text-green-600">
+                      ${((p2pPrice - gridSellPrice) * sellAmount).toFixed(2)}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </TabsContent>
 
-            <TabsContent value="buy">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2">
+              {optimalTimes && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-medium mb-2">Optimal Selling Time</h3>
+                  <div className="bg-green-50 p-3 rounded border border-green-200">
+                    <p className="text-sm">
+                      Best time to sell: <span className="font-medium">{optimalTimes.sell.hour}:00</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Price: ${optimalTimes.sell.grid_sell_price.toFixed(4)}/kWh
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">
+                      {optimalTimes.sell.grid_sell_price > gridSellPrice
+                        ? `${(((optimalTimes.sell.grid_sell_price - gridSellPrice) / gridSellPrice) * 100).toFixed(1)}% higher than current price`
+                        : "Current price is optimal"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="buy">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Buy Energy</CardTitle>
+                  <CardDescription>Purchase energy from the peer-to-peer marketplace</CardDescription>
+                </CardHeader>
+                <CardContent>
                   <form onSubmit={handleBuySubmit}>
                     <div className="space-y-4">
                       <div>
@@ -677,80 +716,92 @@ const EnergyTrading = ({ defaultTab = "sell" }) => {
                       </div>
                     </div>
                   </form>
-                </div>
+                </CardContent>
+                <CardFooter className="bg-gray-50 border-t">
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    <span>Estimated cost: ${(buyAmount * p2pPrice).toFixed(2)}</span>
+                  </div>
+                </CardFooter>
+              </Card>
+            </div>
 
-                <div>
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg">Energy Flow</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-muted-foreground">P2P Market</p>
-                            <div className="flex items-center">
-                              <TrendingDown className="h-4 w-4 text-green-500 mr-1" />
-                              <span className="text-green-500 font-medium">Save up to 15%</span>
-                            </div>
-                          </div>
-                          <Zap className="h-6 w-6 text-primary" />
-                        </div>
-
-                        <div className="h-px bg-muted my-2" />
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Grid</p>
-                            <p className="text-sm">Standard utility rates</p>
-                          </div>
-                          <TrendingUp className="h-6 w-6 text-muted-foreground" />
+            <div>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">Energy Flow</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">P2P Market</p>
+                        <div className="flex items-center">
+                          <TrendingDown className="h-4 w-4 text-green-500 mr-1" />
+                          <span className="text-green-500 font-medium">Save up to 15%</span>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+                      <Zap className="h-6 w-6 text-primary" />
+                    </div>
 
-                  <div className="mt-4">
-                    <h3 className="text-sm font-medium mb-2">Estimated Costs</h3>
-                    <div className="space-y-2">
-                      <div className="bg-muted p-2 rounded">
-                        <p className="text-xs text-muted-foreground">P2P Market (est.)</p>
-                        <p className="font-medium">${(buyAmount * p2pPrice).toFixed(2)}</p>
+                    <div className="h-px bg-muted my-2" />
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Grid</p>
+                        <p className="text-sm">Standard utility rates</p>
                       </div>
-                      <div className="bg-muted p-2 rounded">
-                        <p className="text-xs text-muted-foreground">Grid Price</p>
-                        <p className="font-medium">${(buyAmount * marketPrice).toFixed(2)}</p>
-                      </div>
-                      <div className="bg-muted p-2 rounded">
-                        <p className="text-xs text-muted-foreground">Potential Savings</p>
-                        <p className="font-medium text-green-600">
-                          ${(buyAmount * (marketPrice - p2pPrice)).toFixed(2)}
-                        </p>
-                      </div>
+                      <TrendingUp className="h-6 w-6 text-muted-foreground" />
                     </div>
                   </div>
+                </CardContent>
+              </Card>
 
-                  {optimalTimes && (
-                    <div className="mt-4">
-                      <h3 className="text-sm font-medium mb-2">Optimal Buying Time</h3>
-                      <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                        <p className="text-sm">
-                          Best time to buy: <span className="font-medium">{optimalTimes.buy.hour}:00</span>
-                        </p>
-                        <p className="text-xs text-muted-foreground">Price: ${optimalTimes.buy.price.toFixed(4)}/kWh</p>
-                        <p className="text-xs text-blue-600 mt-1">
-                          {optimalTimes.buy.price < marketPrice
-                            ? `${(((marketPrice - optimalTimes.buy.price) / marketPrice) * 100).toFixed(1)}% lower than current price`
-                            : "Current price is optimal"}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+              <div className="mt-4">
+                <h3 className="text-sm font-medium mb-2">Estimated Costs</h3>
+                <div className="space-y-2">
+                  <div className="bg-muted p-2 rounded">
+                    <p className="text-xs text-muted-foreground">P2P Market (est.)</p>
+                    <p className="font-medium">${(buyAmount * p2pPrice).toFixed(2)}</p>
+                  </div>
+                  <div className="bg-muted p-2 rounded">
+                    <p className="text-xs text-muted-foreground">Grid Price</p>
+                    <p className="font-medium">${(buyAmount * marketPrice).toFixed(2)}</p>
+                  </div>
+                  <div className="bg-muted p-2 rounded">
+                    <p className="text-xs text-muted-foreground">Potential Savings</p>
+                    <p className="font-medium text-green-600">${(buyAmount * (marketPrice - p2pPrice)).toFixed(2)}</p>
+                  </div>
                 </div>
               </div>
-            </TabsContent>
 
-            <TabsContent value="history">
+              {optimalTimes && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-medium mb-2">Optimal Buying Time</h3>
+                  <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                    <p className="text-sm">
+                      Best time to buy: <span className="font-medium">{optimalTimes.buy.hour}:00</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">Price: ${optimalTimes.buy.price.toFixed(4)}/kWh</p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      {optimalTimes.buy.price < marketPrice
+                        ? `${(((marketPrice - optimalTimes.buy.price) / marketPrice) * 100).toFixed(1)}% lower than current price`
+                        : "Current price is optimal"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="history">
+          <Card>
+            <CardHeader>
+              <CardTitle>Trading History</CardTitle>
+              <CardDescription>View your past energy trading transactions</CardDescription>
+            </CardHeader>
+            <CardContent>
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
@@ -826,196 +877,10 @@ const EnergyTrading = ({ defaultTab = "sell" }) => {
                   </TableBody>
                 </Table>
               </div>
-            </TabsContent>
-
-            <TabsContent value="optimize">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Smart Energy Optimization</CardTitle>
-                    <CardDescription>AI-powered recommendations for maximizing energy value</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {optimizationData ? (
-                      <div className="space-y-4">
-                        <Alert
-                          className={`
-                          ${
-                            optimizationData.recommendation.decision === "store"
-                              ? "bg-blue-50 border-blue-200"
-                              : optimizationData.recommendation.decision === "sell_p2p"
-                                ? "bg-green-50 border-green-200"
-                                : optimizationData.recommendation.decision === "sell_grid"
-                                  ? "bg-amber-50 border-amber-200"
-                                  : "bg-gray-50 border-gray-200"
-                          }
-                        `}
-                        >
-                          <Lightbulb
-                            className={`h-4 w-4 
-                            ${
-                              optimizationData.recommendation.decision === "store"
-                                ? "text-blue-600"
-                                : optimizationData.recommendation.decision === "sell_p2p"
-                                  ? "text-green-600"
-                                  : optimizationData.recommendation.decision === "sell_grid"
-                                    ? "text-amber-600"
-                                    : "text-gray-600"
-                            }
-                          `}
-                          />
-                          <AlertTitle>Optimal Strategy</AlertTitle>
-                          <AlertDescription>{optimizationData.recommendation.reason}</AlertDescription>
-                        </Alert>
-
-                        <div className="space-y-2">
-                          <h3 className="text-sm font-medium">Current Conditions</h3>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="bg-muted p-2 rounded">
-                              <p className="text-xs text-muted-foreground">Battery Level</p>
-                              <p className="font-medium">{optimizationData.battery_status.percentage.toFixed(1)}%</p>
-                            </div>
-                            <div className="bg-muted p-2 rounded">
-                              <p className="text-xs text-muted-foreground">Market Price</p>
-                              <p className="font-medium">
-                                ${optimizationData.market_conditions.market_price.toFixed(4)}/kWh
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h3 className="text-sm font-medium mb-2">Optimization Strategy</h3>
-                          <div className="bg-muted p-3 rounded">
-                            {optimizationData.recommendation.decision === "store" && (
-                              <p className="text-sm">
-                                Store energy in your battery now. Based on demand forecasts, you'll need this energy
-                                later when prices are higher or during predicted high consumption periods.
-                              </p>
-                            )}
-                            {optimizationData.recommendation.decision === "sell_p2p" && (
-                              <p className="text-sm">
-                                Sell your excess energy on the P2P market now. Current P2P prices are favorable at $
-                                {optimizationData.market_conditions.p2p_price.toFixed(4)}/kWh, which is
-                                {(
-                                  ((optimizationData.market_conditions.p2p_price -
-                                    optimizationData.market_conditions.grid_sell_price) /
-                                    optimizationData.market_conditions.grid_sell_price) *
-                                  100
-                                ).toFixed(1)}
-                                % higher than grid sell-back.
-                              </p>
-                            )}
-                            {optimizationData.recommendation.decision === "sell_grid" && (
-                              <p className="text-sm">
-                                Sell your excess energy to the grid now. Current grid sell-back price is $
-                                {optimizationData.market_conditions.grid_sell_price.toFixed(4)}/kWh, and there are
-                                limited P2P market opportunities at this time.
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex justify-center items-center h-64">
-                        <RefreshCw className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
-                        <p>Loading optimization data...</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Demand & Price Forecast</CardTitle>
-                    <CardDescription>Predicted energy needs and market conditions</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-6">
-                      <div>
-                        <h3 className="text-sm font-medium mb-2">Demand Forecast</h3>
-                        {demandForecast && demandForecast.length > 0 ? (
-                          <div className="h-40">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <RechartsBarChart data={demandForecast}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="hour" tickFormatter={(hour) => `${hour}:00`} />
-                                <YAxis />
-                                <Tooltip
-                                  formatter={(value) => [`${value.toFixed(2)} kWh`, "Demand"]}
-                                  labelFormatter={(hour) => `${hour}:00`}
-                                />
-                                <Bar dataKey="demand" fill="#f97316" name="Predicted Demand" />
-                              </RechartsBarChart>
-                            </ResponsiveContainer>
-                          </div>
-                        ) : (
-                          <div className="flex justify-center items-center h-40 bg-gray-50 rounded-md">
-                            <p className="text-gray-500">No demand forecast available</p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <h3 className="text-sm font-medium mb-2">Price Forecast</h3>
-                        {priceForecast && priceForecast.length > 0 ? (
-                          <div className="h-40">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={priceForecast}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="hour" tickFormatter={(hour) => `${hour}:00`} />
-                                <YAxis />
-                                <Tooltip
-                                  formatter={(value) => [`$${value.toFixed(4)}/kWh`, "Price"]}
-                                  labelFormatter={(hour) => `${hour}:00`}
-                                />
-                                <Line type="monotone" dataKey="price" stroke="#0ea5e9" name="Grid Price" />
-                                <Line type="monotone" dataKey="p2p_price" stroke="#10b981" name="P2P Price" />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </div>
-                        ) : (
-                          <div className="flex justify-center items-center h-40 bg-gray-50 rounded-md">
-                            <p className="text-gray-500">No price forecast available</p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <h3 className="text-sm font-medium mb-2">Trading Tips</h3>
-                        <ul className="space-y-2 text-sm">
-                          <li className="flex items-start">
-                            <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center mr-2 mt-0.5">
-                              1
-                            </span>
-                            <span>
-                              Sell excess energy during peak demand hours (6-9 AM, 5-10 PM) when prices are highest
-                            </span>
-                          </li>
-                          <li className="flex items-start">
-                            <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center mr-2 mt-0.5">
-                              2
-                            </span>
-                            <span>
-                              Buy energy during off-peak hours when prices are lowest (typically 11 PM - 5 AM)
-                            </span>
-                          </li>
-                          <li className="flex items-start">
-                            <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center mr-2 mt-0.5">
-                              3
-                            </span>
-                            <span>Maintain battery between 30-80% for optimal lifespan and energy flexibility</span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

@@ -1,226 +1,114 @@
-import api from "../config/axios"
+import api from "./api"
 
 const TradingService = {
-  /**
-   * Get market overview data
-   * @returns {Promise<{success: boolean, data: Object, error: string}>}
-   */
+  // Get market overview
   getMarketOverview: async () => {
     try {
       const response = await api.get("/trade/market-overview")
-      return {
-        success: true,
-        data: response.data,
-      }
+      return { success: true, data: response.data }
     } catch (error) {
       console.error("Error fetching market overview:", error)
-      return {
-        success: false,
-        error: error.response?.data?.msg || "Failed to fetch market overview",
-      }
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch market overview" }
     }
   },
 
-  /**
-   * Get user's trading history
-   * @param {number} limit - Maximum number of trades to return
-   * @returns {Promise<{success: boolean, data: Object, error: string}>}
-   */
-  getUserTrades: async (limit = 10) => {
+  // Get market data
+  getMarketData: async (communityId = null) => {
     try {
-      const response = await api.get(`/trade/user-trades?limit=${limit}`)
-      return {
-        success: true,
-        data: response.data,
-      }
+      const url = communityId ? `/trade/market-data?community_id=${communityId}` : "/trade/market-data"
+      const response = await api.get(url)
+      return { success: true, data: response.data }
     } catch (error) {
-      console.error("Error fetching user trades:", error)
-      return {
-        success: false,
-        data: { trades: [] },
-        error: error.response?.data?.msg || "Failed to fetch trading history",
-      }
+      console.error("Error fetching market data:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch market data" }
     }
   },
 
-  /**
-   * Create a new sell order
-   * @param {Object} orderData - The sell order data
-   * @param {number} orderData.amount - Amount of energy to sell in kWh
-   * @param {number} [orderData.price_per_kwh] - Price per kWh (if not provided, uses recommended P2P price)
-   * @param {number} [orderData.community_id] - If selling within a community
-   * @param {number} [orderData.expiry_hours] - How long the offer should remain valid (default: 24 hours)
-   * @param {boolean} [orderData.auto_price] - Whether to use dynamic pricing (default: false)
-   * @returns {Promise<{success: boolean, data: Object, error: string}>}
-   */
+  // Create sell order
   createSellOrder: async (orderData) => {
     try {
       const response = await api.post("/trade/create-sell-order", orderData)
-      return {
-        success: true,
-        data: response.data,
-      }
+      return { success: true, data: response.data }
     } catch (error) {
       console.error("Error creating sell order:", error)
-      return {
-        success: false,
-        error: error.response?.data?.msg || "Failed to create sell order",
-      }
+      return { success: false, error: error.response?.data?.msg || "Failed to create sell order" }
     }
   },
 
-  /**
-   * Buy energy from the marketplace
-   * @param {Object} buyData - The buy order data
-   * @param {string} [buyData.trade_id] - Specific trade to buy from
-   * @param {number} [buyData.amount] - Amount of energy to buy (required if trade_id not provided)
-   * @param {number} [buyData.max_price] - Maximum price willing to pay per kWh
-   * @param {number} [buyData.community_id] - If buying within a community
-   * @param {boolean} [buyData.auto_price] - Whether to use dynamic pricing (default: false)
-   * @returns {Promise<{success: boolean, data: Object, error: string}>}
-   */
+  // Buy energy
   buyEnergy: async (buyData) => {
     try {
       const response = await api.post("/trade/buy-energy", buyData)
-      return {
-        success: true,
-        data: response.data,
-      }
+      return { success: true, data: response.data }
     } catch (error) {
       console.error("Error buying energy:", error)
-      return {
-        success: false,
-        error: error.response?.data?.msg || "Failed to buy energy",
-      }
+      return { success: false, error: error.response?.data?.msg || "Failed to buy energy" }
     }
   },
 
-  /**
-   * Cancel a pending trade
-   * @param {string} tradeId - ID of the trade to cancel
-   * @returns {Promise<{success: boolean, data: Object, error: string}>}
-   */
+  // Buy specific trade
+  buyTrade: async (tradeId) => {
+    try {
+      const response = await api.post(`/trade/buy/${tradeId}`)
+      return { success: true, data: response.data }
+    } catch (error) {
+      console.error("Error buying trade:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to buy trade" }
+    }
+  },
+
+  // Cancel trade
   cancelTrade: async (tradeId) => {
     try {
-      const response = await api.post(`/trade/cancel-trade/${tradeId}`, {})
-      return {
-        success: true,
-        data: response.data,
-      }
+      const response = await api.post(`/trade/cancel/${tradeId}`)
+      return { success: true, data: response.data }
     } catch (error) {
       console.error("Error cancelling trade:", error)
-      return {
-        success: false,
-        error: error.response?.data?.msg || "Failed to cancel trade",
-      }
+      return { success: false, error: error.response?.data?.msg || "Failed to cancel trade" }
     }
   },
 
-  /**
-   * Sell energy to the grid
-   * @param {number} amount - Amount of energy to sell in kWh
-   * @returns {Promise<{success: boolean, data: Object, error: string}>}
-   */
-  sellToGrid: async (amount) => {
+  // Get trading history
+  getTradingHistory: async (period = "all") => {
     try {
-      const response = await api.post("/trade/sell-to-grid", { amount })
-      return {
-        success: true,
-        data: response.data,
-      }
+      const response = await api.get(`/trade/history?period=${period}`)
+      return { success: true, data: response.data }
     } catch (error) {
-      console.error("Error selling to grid:", error)
-      return {
-        success: false,
-        error: error.response?.data?.msg || "Failed to sell energy to grid",
-      }
+      console.error("Error fetching trading history:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch trading history" }
     }
   },
 
-  /**
-   * Buy energy from the grid
-   * @param {number} amount - Amount of energy to buy in kWh
-   * @returns {Promise<{success: boolean, data: Object, error: string}>}
-   */
-  buyFromGrid: async (amount) => {
+  // Get price forecast
+  getPriceForecast: async () => {
     try {
-      const response = await api.post("/trade/buy-from-grid", { amount })
-      return {
-        success: true,
-        data: response.data,
-      }
+      const response = await api.get("/trade/price-forecast")
+      return { success: true, data: response.data }
     } catch (error) {
-      console.error("Error buying from grid:", error)
-      return {
-        success: false,
-        error: error.response?.data?.msg || "Failed to buy energy from grid",
-      }
+      console.error("Error fetching price forecast:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch price forecast" }
     }
   },
 
-  /**
-   * Get energy optimization recommendations
-   * @param {number} [amount] - Amount of energy to optimize (default: 1.0 kWh)
-   * @returns {Promise<{success: boolean, data: Object, error: string}>}
-   */
-  getEnergyOptimization: async (amount = 1.0) => {
+  // Get optimal energy decision
+  getOptimalEnergyDecision: async (amount) => {
     try {
-      const response = await api.get(`/trade/energy-optimization?amount=${amount}`)
-      return {
-        success: true,
-        data: response.data,
-      }
+      const response = await api.get(`/trade/optimal-decision?amount=${amount}`)
+      return { success: true, data: response.data }
     } catch (error) {
-      console.error("Error getting energy optimization:", error)
-      return {
-        success: false,
-        error: error.response?.data?.msg || "Failed to get energy optimization",
-      }
+      console.error("Error fetching optimal energy decision:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch optimal energy decision" }
     }
   },
 
-  /**
-   * Get energy price forecast
-   * @param {number} [hours] - Number of hours to forecast (default: 24)
-   * @returns {Promise<{success: boolean, data: Object, error: string}>}
-   */
-  getPriceForecast: async (hours = 24) => {
+  // Update trading preferences
+  updateTradingPreferences: async (preferences) => {
     try {
-      const response = await api.get(`/trade/price-forecast?hours=${hours}`)
-      return {
-        success: true,
-        data: response.data,
-      }
+      const response = await api.post("/trade/preferences", preferences)
+      return { success: true, data: response.data }
     } catch (error) {
-      console.error("Error getting price forecast:", error)
-      return {
-        success: false,
-        data: { forecast: [] },
-        error: error.response?.data?.msg || "Failed to get price forecast",
-      }
-    }
-  },
-
-  /**
-   * Get list of communities the user is a member of
-   * @returns {Promise<{success: boolean, data: Array, error: string}>}
-   */
-  getUserCommunities: async () => {
-    try {
-      const response = await api.get("/community/list")
-      // Filter only communities the user is a member of
-      const userCommunities = response.data.communities.filter((c) => c.is_member)
-      return {
-        success: true,
-        data: userCommunities,
-      }
-    } catch (error) {
-      console.error("Error fetching communities:", error)
-      return {
-        success: false,
-        data: [],
-        error: error.response?.data?.msg || "Failed to fetch communities",
-      }
+      console.error("Error updating trading preferences:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to update trading preferences" }
     }
   },
 }

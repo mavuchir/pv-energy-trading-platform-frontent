@@ -1,12 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/Card"
-import { Button } from "./ui/button"
-import { Input } from "./ui/Input"
-import { Label } from "./ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table"
-import { Switch } from "./ui/switch"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "../components/ui/Card"
+import { Button } from "../components/ui/button"
+import { Switch } from "../components/ui/switch"
+import { Input } from "../components/ui/Input"
+import { Label } from "../components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -15,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "./ui/dialog"
+} from "../components/ui/dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,16 +25,31 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "./ui/AlertDialog"
-import { FaPlug, FaEdit, FaTrash, FaPlus, FaSync, FaChartLine } from "react-icons/fa"
-import { useToast } from "../hooks/use-toast"
-import ApplianceService from "../services/appliance"
-import EnergyService from "../services/energy"
+} from "../components/ui/AlertDialog"
+import {
+  FaPlug,
+  FaLightbulb,
+  FaSnowflake,
+  FaFan,
+  FaTv,
+  FaWater,
+  FaWifi,
+  FaDesktop,
+  FaEdit,
+  FaTrash,
+  FaPlus,
+  FaSync,
+  FaChartLine,
+} from "react-icons/fa"
+import api from "../config/axios"
 
 const ApplianceManager = ({ initialAppliances = [] }) => {
   const [appliances, setAppliances] = useState(initialAppliances)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [formData, setFormData] = useState({
     name: "",
+    type: "other",
     power_consumption: "",
     daily_usage_hours: "",
     is_smart_device: false,
@@ -44,14 +58,10 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
   const [editingId, setEditingId] = useState(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [totalDailyConsumption, setTotalDailyConsumption] = useState(0)
   const [applianceStatus, setApplianceStatus] = useState({})
   const [realTimeConsumption, setRealTimeConsumption] = useState(0)
-  const { toast } = useToast()
+  const [totalDailyConsumption, setTotalDailyConsumption] = useState(0)
 
-  // Fetch appliances on component mount
   useEffect(() => {
     fetchAppliances()
   }, [])
@@ -74,7 +84,7 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
   useEffect(() => {
     // Calculate total daily consumption
     const total = appliances.reduce((sum, appliance) => {
-      const dailyEnergy = calculateDailyEnergy(appliance.power_consumption, appliance.daily_usage_hours)
+      const dailyEnergy = calculateDailyEnergy(appliance.power_consumption, appliance.daily_usage_hours || 8)
       return sum + dailyEnergy
     }, 0)
     setTotalDailyConsumption(total)
@@ -89,43 +99,35 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
     setRealTimeConsumption(realTime)
   }, [appliances, applianceStatus])
 
+  // Notify parent component when appliance status changes
+  useEffect(() => {
+    // If any appliance is toggled, refresh the dashboard data
+    if (Object.keys(applianceStatus).length > 0 && window.refreshDashboardData) {
+      window.refreshDashboardData()
+    }
+  }, [applianceStatus])
+
   const fetchAppliances = async () => {
-    setIsLoading(true)
-    setError(null)
-
     try {
-      console.log("Fetching appliances in ApplianceManager component")
-      const result = await ApplianceService.getAppliances()
+      setLoading(true)
+      const response = await api.get("/appliance/list")
 
-      if (result.success) {
-        console.log("Successfully fetched appliances:", result.data)
-        setAppliances(result.data)
+      if (response.data) {
+        setAppliances(response.data)
 
         // Initialize status for each appliance
         const initialStatus = {}
-        result.data.forEach((appliance) => {
+        response.data.forEach((appliance) => {
           initialStatus[appliance.id] = appliance.is_on || false
         })
         setApplianceStatus(initialStatus)
-      } else {
-        console.error("Failed to fetch appliances:", result.error)
-        setError(result.error)
-        toast({
-          title: "Error",
-          description: result.error,
-          variant: "destructive",
-        })
       }
+      setError(null)
     } catch (err) {
-      console.error("Error in fetchAppliances:", err)
+      console.error("Error fetching appliances:", err)
       setError("Failed to load appliances. Please try again.")
-      toast({
-        title: "Error",
-        description: "Failed to load appliances. Please try again.",
-        variant: "destructive",
-      })
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
@@ -146,6 +148,7 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
   const resetForm = () => {
     setFormData({
       name: "",
+      type: "other",
       power_consumption: "",
       daily_usage_hours: "",
       is_smart_device: false,
@@ -158,8 +161,9 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
     if (appliance) {
       setFormData({
         name: appliance.name,
+        type: appliance.type || "other",
         power_consumption: appliance.power_consumption.toString(),
-        daily_usage_hours: appliance.daily_usage_hours.toString(),
+        daily_usage_hours: appliance.daily_usage_hours ? appliance.daily_usage_hours.toString() : "8",
         is_smart_device: appliance.is_smart_device || false,
         is_schedulable: appliance.is_schedulable || false,
       })
@@ -177,31 +181,19 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
 
   const validateForm = () => {
     if (!formData.name.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Appliance name is required",
-        variant: "destructive",
-      })
+      setError("Appliance name is required")
       return false
     }
 
     const power = Number.parseFloat(formData.power_consumption)
-    if (isNaN(power) || power < 0) {
-      toast({
-        title: "Validation Error",
-        description: "Power consumption must be a positive number",
-        variant: "destructive",
-      })
+    if (isNaN(power) || power <= 0) {
+      setError("Power consumption must be a positive number")
       return false
     }
 
     const hours = Number.parseFloat(formData.daily_usage_hours)
     if (isNaN(hours) || hours < 0 || hours > 24) {
-      toast({
-        title: "Validation Error",
-        description: "Daily usage hours must be between 0 and 24",
-        variant: "destructive",
-      })
+      setError("Daily usage hours must be between 0 and 24")
       return false
     }
 
@@ -218,79 +210,46 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
     try {
       const applianceData = {
         name: formData.name,
+        type: formData.type,
         power_consumption: Number.parseFloat(formData.power_consumption),
         daily_usage_hours: Number.parseFloat(formData.daily_usage_hours),
         is_smart_device: formData.is_smart_device,
         is_schedulable: formData.is_schedulable,
       }
 
-      let result
+      let response
 
       if (editingId) {
         // Update existing appliance
-        result = await ApplianceService.updateAppliance(editingId, applianceData)
+        response = await api.post(`/appliance/update/${editingId}`, applianceData)
       } else {
         // Add new appliance
-        result = await ApplianceService.addAppliance(applianceData)
+        response = await api.post("/appliance/add", applianceData)
       }
 
-      if (result.success) {
-        toast({
-          title: editingId ? "Appliance Updated" : "Appliance Added",
-          description: editingId
-            ? `${formData.name} has been updated successfully.`
-            : `${formData.name} has been added to your appliances.`,
-        })
-
+      if (response.data) {
         // Refresh the appliance list
         await fetchAppliances()
-
         handleCloseDialog()
       } else {
-        toast({
-          title: "Error",
-          description: result.error || "An error occurred. Please try again.",
-          variant: "destructive",
-        })
+        setError("Failed to save appliance. Please try again.")
       }
     } catch (err) {
       console.error("Error submitting appliance:", err)
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      })
+      setError("An unexpected error occurred. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleDelete = async (id, name) => {
+  const deleteAppliance = async (id) => {
     try {
-      const result = await ApplianceService.deleteAppliance(id)
-
-      if (result.success) {
-        toast({
-          title: "Appliance Removed",
-          description: `${name} has been removed from your appliances.`,
-        })
-
-        // Refresh the appliance list
-        await fetchAppliances()
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "Failed to remove appliance. Please try again.",
-          variant: "destructive",
-        })
-      }
+      await api.delete(`/appliance/delete/${id}`)
+      // Refresh the appliance list
+      await fetchAppliances()
     } catch (err) {
       console.error("Error deleting appliance:", err)
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      })
+      setError("Failed to delete appliance. Please try again.")
     }
   }
 
@@ -303,37 +262,51 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
       }))
 
       // Send request to backend
-      const result = await ApplianceService.toggleAppliance(id, !currentStatus)
+      await api.post(`/appliance/toggle/${id}`, {
+        is_on: !currentStatus,
+      })
 
-      if (result.success) {
-        // If turning on, record energy consumption
-        if (!currentStatus) {
-          const appliance = appliances.find((a) => a.id === id)
-          if (appliance) {
+      // If turning on, record energy consumption and affect generation
+      if (!currentStatus) {
+        const appliance = appliances.find((a) => a.id === id)
+        if (appliance) {
+          try {
             // Record energy consumption when turning on
-            await EnergyService.recordConsumption({
+            await api.post("/energy/record-consumption", {
               amount: (appliance.power_consumption / 1000) * 0.25, // 15 minutes worth of consumption in kWh
               appliance_id: id,
             })
+
+            // Affect generation - simulate impact on energy balance
+            await api.post("/energy/update-generation", {
+              impact: -(appliance.power_consumption / 1000), // Negative impact on generation/energy balance
+              source: "appliance_toggle",
+            })
+          } catch (recordErr) {
+            console.error("Error recording consumption or updating generation:", recordErr)
+            // Continue even if recording fails
           }
         }
-
-        toast({
-          title: `Appliance ${!currentStatus ? "Turned On" : "Turned Off"}`,
-          description: `${name} has been ${!currentStatus ? "turned on" : "turned off"} successfully`,
-        })
       } else {
-        // Revert UI state on error
-        setApplianceStatus((prev) => ({
-          ...prev,
-          [id]: currentStatus,
-        }))
+        // If turning off, update generation positively
+        const appliance = appliances.find((a) => a.id === id)
+        if (appliance) {
+          try {
+            // Affect generation - simulate positive impact on energy balance
+            await api.post("/energy/update-generation", {
+              impact: (appliance.power_consumption / 1000) * 0.5, // Positive impact when turning off (reduced consumption)
+              source: "appliance_toggle",
+            })
+          } catch (updateErr) {
+            console.error("Error updating generation:", updateErr)
+          }
+        }
+      }
 
-        toast({
-          title: "Error",
-          description: result.error || "Failed to toggle appliance status",
-          variant: "destructive",
-        })
+      // Trigger a refresh of the dashboard data to reflect changes
+      // This assumes there's a parent component function or context method to refresh dashboard
+      if (window.refreshDashboardData) {
+        window.refreshDashboardData()
       }
     } catch (err) {
       console.error("Error toggling appliance status:", err)
@@ -344,12 +317,37 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
         [id]: currentStatus,
       }))
 
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      })
+      setError("Failed to toggle appliance status. Please try again.")
     }
+  }
+
+  const getApplianceIcon = (type) => {
+    switch (type?.toLowerCase()) {
+      case "light":
+        return <FaLightbulb />
+      case "refrigerator":
+        return <FaSnowflake />
+      case "fan":
+        return <FaFan />
+      case "tv":
+        return <FaTv />
+      case "water heater":
+        return <FaWater />
+      case "router":
+        return <FaWifi />
+      case "computer":
+        return <FaDesktop />
+      default:
+        return <FaPlug />
+    }
+  }
+
+  if (loading && appliances.length === 0) {
+    return (
+      <div className="flex justify-center items-center h-40">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+      </div>
+    )
   }
 
   return (
@@ -365,8 +363,8 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
               <CardDescription>Manage your household appliances and track their energy consumption</CardDescription>
             </div>
             <div className="flex space-x-2">
-              <Button variant="outline" onClick={fetchAppliances} disabled={isLoading}>
-                <FaSync className={`mr-2 ${isLoading ? "animate-spin" : ""}`} />
+              <Button variant="outline" onClick={fetchAppliances} disabled={loading}>
+                <FaSync className={`mr-2 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -398,6 +396,27 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
                           required
                         />
                       </div>
+
+                      <div className="grid gap-2">
+                        <Label htmlFor="type">Appliance Type</Label>
+                        <select
+                          id="type"
+                          name="type"
+                          value={formData.type}
+                          onChange={handleInputChange}
+                          className="w-full p-2 border rounded-md"
+                        >
+                          <option value="light">Light</option>
+                          <option value="refrigerator">Refrigerator</option>
+                          <option value="fan">Fan</option>
+                          <option value="tv">TV</option>
+                          <option value="water heater">Water Heater</option>
+                          <option value="router">Router/Modem</option>
+                          <option value="computer">Computer</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+
                       <div className="grid gap-2">
                         <Label htmlFor="power_consumption">Power Consumption (Watts)</Label>
                         <Input
@@ -505,7 +524,7 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
             </CardContent>
           </Card>
 
-          {isLoading && appliances.length === 0 ? (
+          {loading && appliances.length === 0 ? (
             <div className="flex justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
             </div>
@@ -515,94 +534,98 @@ const ApplianceManager = ({ initialAppliances = [] }) => {
               <p className="text-sm mt-2">Add appliances to track your energy consumption</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Appliance</TableHead>
-                    <TableHead className="text-right">Power (W)</TableHead>
-                    <TableHead className="text-right">Daily Usage (h)</TableHead>
-                    <TableHead className="text-right">Daily Energy (kWh)</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {appliances.map((appliance, index) => {
-                    const dailyEnergy = calculateDailyEnergy(appliance.power_consumption, appliance.daily_usage_hours)
-                    return (
-                      <TableRow key={appliance.id || index}>
-                        <TableCell className="font-medium">
-                          {appliance.name}
-                          {appliance.is_smart_device && (
-                            <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
-                              Smart
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">{appliance.power_consumption}</TableCell>
-                        <TableCell className="text-right">{appliance.daily_usage_hours}</TableCell>
-                        <TableCell className="text-right">{dailyEnergy.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Switch
-                              checked={applianceStatus[appliance.id] || false}
-                              onCheckedChange={() =>
-                                toggleApplianceStatus(
-                                  appliance.id,
-                                  appliance.name,
-                                  applianceStatus[appliance.id] || false,
-                                )
-                              }
-                            />
-                            <span className={applianceStatus[appliance.id] ? "text-green-600" : "text-gray-500"}>
-                              {applianceStatus[appliance.id] ? "ON" : "OFF"}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenDialog(appliance)}
-                              className="text-blue-600 hover:text-blue-800"
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {appliances.map((appliance, index) => {
+                const dailyEnergy = calculateDailyEnergy(appliance.power_consumption, appliance.daily_usage_hours || 8)
+                const isOn = applianceStatus[appliance.id] || false
+
+                return (
+                  <Card
+                    key={appliance.id || index}
+                    className={`overflow-hidden border-l-4 ${isOn ? "border-l-green-500" : "border-l-gray-300"}`}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center">
+                          <span className={`mr-2 ${isOn ? "text-green-600" : "text-gray-500"}`}>
+                            {getApplianceIcon(appliance.type)}
+                          </span>
+                          <CardTitle className="text-lg">{appliance.name}</CardTitle>
+                        </div>
+                        <Switch
+                          checked={isOn}
+                          onCheckedChange={() => toggleApplianceStatus(appliance.id, appliance.name, isOn)}
+                          className={`${isOn ? "bg-green-500" : "bg-gray-300"}`}
+                        />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pb-2">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-gray-500">Power:</p>
+                          <p className="font-medium">{appliance.power_consumption} W</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Daily Usage:</p>
+                          <p className="font-medium">{appliance.daily_usage_hours || 8} h</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Daily Energy:</p>
+                          <p className="font-medium">{dailyEnergy.toFixed(2)} kWh</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Status:</p>
+                          <p className={`font-medium ${isOn ? "text-green-600" : "text-gray-500"}`}>
+                            {isOn ? "ACTIVE" : "INACTIVE"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {isOn && (
+                        <div className="mt-2 bg-green-50 p-2 rounded-md text-xs text-green-800">
+                          Currently consuming {(appliance.power_consumption / 1000).toFixed(2)} kW
+                        </div>
+                      )}
+                    </CardContent>
+                    <div className="bg-gray-50 px-4 py-2 flex justify-end space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenDialog(appliance)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        <FaEdit />
+                        <span className="sr-only">Edit</span>
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <FaTrash className="text-red-500" />
+                            <span className="sr-only">Delete</span>
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Appliance</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete {appliance.name}? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteAppliance(appliance.id)}
+                              className="bg-red-600 hover:bg-red-700"
                             >
-                              <FaEdit />
-                              <span className="sr-only">Edit</span>
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <FaTrash className="text-red-500" />
-                                  <span className="sr-only">Delete</span>
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Appliance</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete {appliance.name}? This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDelete(appliance.id, appliance.name)}
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </Card>
+                )
+              })}
             </div>
           )}
         </CardContent>

@@ -3,7 +3,19 @@
 import { Link, useLocation } from "react-router-dom"
 import { useAuth } from "../../contexts/AuthContext"
 import { useNavigation } from "../../contexts/NavigationContext"
-import { BarChart2, Sun, Settings, Users, Sliders, LogOut, LayoutDashboard, LineChart } from "lucide-react"
+import {
+  BarChart2,
+  Settings,
+  Users,
+  LogOut,
+  LayoutDashboard,
+  LineChart,
+  Cloud,
+  Battery,
+  Plug,
+  ShieldAlert,
+  Beaker,
+} from "lucide-react"
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
 
@@ -16,65 +28,65 @@ const NAV_ITEMS = [
     description: "Overview of your energy system",
   },
   {
-    name: "Solar Simulation",
-    path: "/solar-simulation",
-    icon: Sun,
-    roles: ["household"],
-    description: "Monitor solar panel performance",
-  },
-  {
-    name: "Trading Platform",
-    path: "/trading-platform",
-    icon: LineChart,
-    roles: ["household"],
-    description: "Buy and sell energy",
-  },
-  {
-    name: "Appliance Control",
-    path: "/appliance-control",
-    icon: Sliders,
-    roles: ["household"],
-    description: "Manage your appliances",
-  },
-  {
-    name: "Community",
-    path: "/community",
-    icon: Users,
-    roles: ["household"],
-    description: "Connect with energy community",
-  },
-  {
-    name: "Analytics",
+    name: "Energy Analytics",
     path: "/analytics",
     icon: BarChart2,
     roles: ["household", "admin"],
     description: "Detailed energy analytics",
   },
   {
-    name: "EnergyData",
-    path: "/energy-data",
+    name: "Appliance Control",
+    path: "/appliance-control",
+    icon: Plug,
+    roles: ["household"],
+    description: "Manage your appliances",
+  },
+  {
+    name: "Trading Platform",
+    path: "/trading",
+    icon: LineChart,
+    roles: ["household"],
+    description: "Buy and sell energy",
+  },
+  {
+    name: "Community Energy",
+    path: "/community",
     icon: Users,
     roles: ["household"],
     description: "Connect with energy community",
   },
   {
-    name: "Settings",
+    name: "Energy Optimization",
+    path: "/optimization",
+    icon: Battery,
+    roles: ["household"],
+    description: "AI-powered energy optimization",
+  },
+  {
+    name: "Weather Forecast",
+    path: "/weather",
+    icon: Cloud,
+    roles: ["household"],
+    description: "Weather and solar forecasts",
+  },
+  {
+    name: "System Configuration",
     path: "/settings",
     icon: Settings,
     roles: ["household", "admin"],
     description: "System preferences",
   },
   {
-    name: "User Management",
-    path: "/user-management",
-    icon: Users,
+    name: "Admin Panel",
+    path: "/admin",
+    icon: ShieldAlert,
     roles: ["admin"],
-    description: "Manage system users",
+    description: "System administration",
   },
   {
     name: "Demo Controls",
-    path: "/demo-control",
-    icon: Sliders,
+    path: "/demo",
+    icon: Beaker,
     roles: ["admin"],
     description: "System simulation controls",
   },
@@ -99,8 +111,8 @@ const Sidebar = () => {
     >
       <div className="flex flex-col h-full">
         <div className="p-4 border-b">
-          <h1 className="text-xl font-semibold text-teal-600">Energy Management</h1>
-          <p className="text-sm text-gray-500">Welcome, {user.name || user.username}</p>
+          <h1 className="text-xl font-semibold text-teal-600">PV Energy System</h1>
+          <p className="text-sm text-gray-500">Welcome, {user.full_name || user.username}</p>
         </div>
 
         <ScrollArea className="flex-1 py-2">

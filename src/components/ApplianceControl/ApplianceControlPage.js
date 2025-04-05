@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "./ui/Card"
 import { Button } from "./ui/button"
 import { Input } from "./ui/Input"
 import { Label } from "./ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "./ui/dialog"
 import { Switch } from "./ui/switch"
 import { useToast } from "../hooks/use-toast"
 import api from "../config/axios"
@@ -27,6 +27,8 @@ const ApplianceControl = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [applianceStatus, setApplianceStatus] = useState({}) // Track on/off status
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [importData, setImportData] = useState("")
 
   useEffect(() => {
     fetchAppliances()
@@ -234,6 +236,92 @@ const ApplianceControl = () => {
     }, 0)
   }
 
+  const handleImportAppliances = async () => {
+    try {
+      let appliancesToImport = []
+
+      try {
+        appliancesToImport = JSON.parse(importData)
+
+        if (!Array.isArray(appliancesToImport)) {
+          throw new Error("Imported data must be an array of appliances")
+        }
+      } catch (parseError) {
+        toast({
+          title: "Invalid JSON",
+          description: "Please provide valid JSON data for appliances",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setLoading(true)
+
+      // Clear existing appliances if checkbox is checked
+      if (document.getElementById("clear-existing").checked) {
+        await api.delete("/appliance/clear-all")
+      }
+
+      // Add each appliance
+      let addedCount = 0
+      let errorCount = 0
+
+      for (const appliance of appliancesToImport) {
+        try {
+          await api.post("/appliance/add", {
+            name: appliance.name,
+            power_consumption: appliance.power_consumption,
+            daily_usage_hours: appliance.daily_usage_hours || 0,
+            is_smart_device: appliance.is_smart_device || false,
+            is_schedulable: appliance.is_schedulable || false,
+            is_on: false,
+          })
+          addedCount++
+        } catch (err) {
+          console.error(`Error adding appliance ${appliance.name}:`, err)
+          errorCount++
+        }
+      }
+
+      toast({
+        title: "Import Complete",
+        description: `Added ${addedCount} appliances. ${errorCount > 0 ? `Failed to add ${errorCount} appliances.` : ""}`,
+        variant: errorCount > 0 ? "warning" : "default",
+      })
+
+      setIsImportDialogOpen(false)
+      setImportData("")
+      await fetchAppliances()
+    } catch (err) {
+      console.error("Error importing appliances:", err)
+      toast({
+        title: "Error",
+        description: "Failed to import appliances",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const exportAppliances = () => {
+    const appliancesData = JSON.stringify(appliances, null, 2)
+    const blob = new Blob([appliancesData], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "appliances.json"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    toast({
+      title: "Export Complete",
+      description: `${appliances.length} appliances exported to JSON file`,
+    })
+  }
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Appliance Management</h1>
@@ -254,81 +342,135 @@ const ApplianceControl = () => {
           Manage your household appliances to track energy consumption and optimize usage.
         </p>
 
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center">
-              <FaPlus className="mr-2" /> Add Appliance
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Appliance</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Appliance Name</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  value={newAppliance.name}
-                  onChange={(e) => setNewAppliance({ ...newAppliance, name: e.target.value })}
-                  placeholder="e.g., Refrigerator"
-                />
-              </div>
+        <div className="flex space-x-2">
+          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">Import Appliances</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Import Appliances</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="import-data">Paste JSON Data</Label>
+                  <textarea
+                    id="import-data"
+                    className="w-full h-40 p-2 border rounded-md"
+                    value={importData}
+                    onChange={(e) => setImportData(e.target.value)}
+                    placeholder='[
+  {
+    "name": "Refrigerator",
+    "power_consumption": 150,
+    "daily_usage_hours": 24
+  },
+  {
+    "name": "TV",
+    "power_consumption": 100,
+    "daily_usage_hours": 4
+  }
+]'
+                  ></textarea>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="power_consumption">Power Consumption (W)</Label>
-                <Input
-                  id="power_consumption"
-                  name="power_consumption"
-                  type="number"
-                  value={newAppliance.power_consumption}
-                  onChange={(e) => setNewAppliance({ ...newAppliance, power_consumption: Number(e.target.value) })}
-                  min="1"
-                  step="1"
-                  placeholder="e.g., 150"
-                />
-              </div>
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" id="clear-existing" className="rounded border-gray-300" />
+                  <Label htmlFor="clear-existing">Clear existing appliances</Label>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="daily_usage_hours">Daily Usage (hours)</Label>
-                <Input
-                  id="daily_usage_hours"
-                  name="daily_usage_hours"
-                  type="number"
-                  value={newAppliance.daily_usage_hours}
-                  onChange={(e) => setNewAppliance({ ...newAppliance, daily_usage_hours: Number(e.target.value) })}
-                  min="0.1"
-                  max="24"
-                  step="0.1"
-                  placeholder="e.g., 24"
-                />
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleImportAppliances} disabled={loading}>
+                    {loading ? "Importing..." : "Import"}
+                  </Button>
+                </DialogFooter>
               </div>
+            </DialogContent>
+          </Dialog>
 
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="is_smart_device"
-                  checked={newAppliance.is_smart_device}
-                  onCheckedChange={(checked) => setNewAppliance({ ...newAppliance, is_smart_device: checked })}
-                />
-                <Label htmlFor="is_smart_device">Smart Device</Label>
-              </div>
+          <Button variant="outline" onClick={exportAppliances} disabled={appliances.length === 0}>
+            Export Appliances
+          </Button>
 
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="is_schedulable"
-                  checked={newAppliance.is_schedulable}
-                  onCheckedChange={(checked) => setNewAppliance({ ...newAppliance, is_schedulable: checked })}
-                />
-                <Label htmlFor="is_schedulable">Schedulable</Label>
-              </div>
-
-              <Button onClick={handleAddAppliance} disabled={loading} className="w-full">
-                {loading ? "Adding..." : "Add Appliance"}
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center">
+                <FaPlus className="mr-2" /> Add Appliance
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Appliance</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Appliance Name</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    value={newAppliance.name}
+                    onChange={(e) => setNewAppliance({ ...newAppliance, name: e.target.value })}
+                    placeholder="e.g., Refrigerator"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="power_consumption">Power Consumption (W)</Label>
+                  <Input
+                    id="power_consumption"
+                    name="power_consumption"
+                    type="number"
+                    value={newAppliance.power_consumption}
+                    onChange={(e) => setNewAppliance({ ...newAppliance, power_consumption: Number(e.target.value) })}
+                    min="1"
+                    step="1"
+                    placeholder="e.g., 150"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="daily_usage_hours">Daily Usage (hours)</Label>
+                  <Input
+                    id="daily_usage_hours"
+                    name="daily_usage_hours"
+                    type="number"
+                    value={newAppliance.daily_usage_hours}
+                    onChange={(e) => setNewAppliance({ ...newAppliance, daily_usage_hours: Number(e.target.value) })}
+                    min="0.1"
+                    max="24"
+                    step="0.1"
+                    placeholder="e.g., 24"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="is_smart_device"
+                    checked={newAppliance.is_smart_device}
+                    onCheckedChange={(checked) => setNewAppliance({ ...newAppliance, is_smart_device: checked })}
+                  />
+                  <Label htmlFor="is_smart_device">Smart Device</Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="is_schedulable"
+                    checked={newAppliance.is_schedulable}
+                    onCheckedChange={(checked) => setNewAppliance({ ...newAppliance, is_schedulable: checked })}
+                  />
+                  <Label htmlFor="is_schedulable">Schedulable</Label>
+                </div>
+
+                <Button onClick={handleAddAppliance} disabled={loading} className="w-full">
+                  {loading ? "Adding..." : "Add Appliance"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Real-time consumption card */}
@@ -377,6 +519,9 @@ const ApplianceControl = () => {
             <div className="text-center py-8 text-gray-500">
               <p>No appliances found</p>
               <p className="text-sm mt-2">Add appliances to track your energy consumption</p>
+              <Button onClick={() => setIsAddDialogOpen(true)} className="mt-4">
+                <FaPlus className="mr-2" /> Add Your First Appliance
+              </Button>
             </div>
           ) : (
             <div className="overflow-x-auto">

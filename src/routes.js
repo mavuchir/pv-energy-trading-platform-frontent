@@ -1,31 +1,28 @@
-import { Route, Routes } from "react-router-dom";
-import AppLayout from "./components/Layout/AppLayout";
-import Login from "./components/Authentication/Login";
-import Register from "./components/Authentication/Register";
-import Configuration from "./components/Authentication/Configuration";
-import Dashboard from "./pages/Dashboard";
-import SolarSimulation from "./pages/SolarSimulation";
-import TradingPlatform from "./pages/TradingPlatform";
-import ApplianceControl from "./pages/ApplianceControl";
-import Analytics from "./pages/Analytics";
-import Settings from "./pages/Settings";
-import UserManagement from "./pages/UserManagement";
-import SystemSettings from "./pages/SystemSettings";
-import ProtectedRoute from "./components/Authentication/ProtectedRoute";
-import Home from "./pages/Home"
+import { Route, Routes } from "react-router-dom"
+import AppLayout from "./components/Layout/AppLayout"
+import Login from "./components/Authentication/Login"
+import Register from "./components/Authentication/Register"
+import Configuration from "./components/Authentication/Configuration"
+import Dashboard from "./pages/Dashboard"
+import Analytics from "./pages/Analytics"
+import ApplianceControl from "./pages/ApplianceControl"
+import Trading from "./pages/TradingPlatform"
 import Community from "./pages/Community"
-import EnergyData from './pages/EnergyData'
+import Optimization from "./pages/Optimization"
+import Weather from "./pages/Weather"
+import Settings from "./pages/Settings"
+import ProtectedRoute from "./components/Authentication/ProtectedRoute"
+import Home from "./pages/Home"
 
 const AppRoutes = () => {
   return (
     <Routes>
-    
       {/* Public Routes */}
-      <Route path="/" element={<Home/>} />
+      <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/configuration" element={<Configuration />} />
-      
+
       {/* Protected Routes */}
       <Route
         element={
@@ -35,25 +32,17 @@ const AppRoutes = () => {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/solar-simulation" element={<SolarSimulation />} />
-        <Route path="/trading-platform" element={<TradingPlatform />} />
-        <Route path="/appliance-control" element={<ApplianceControl />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route path="/appliance-control" element={<ApplianceControl />} />
+        <Route path="/trading" element={<Trading />} />
+        <Route path="/community" element={<Community />} />
+        <Route path="/optimization" element={<Optimization />} />
+        <Route path="/weather" element={<Weather />} />
         <Route path="/settings" element={<Settings />} />
-        <Route path="/user-management" element={<UserManagement />} />
-        <Route path="/system-settings" element={<SystemSettings />} />
-        <Route path="/community" element={<Community/>}/>
-        <Route
-            path="/energy-data"
-            element={
-              <ProtectedRoute>
-                <EnergyData />
-              </ProtectedRoute>
-            }
-          />
       </Route>
     </Routes>
-  );
-};
+  )
+}
 
-export default AppRoutes;
+export default AppRoutes
+
