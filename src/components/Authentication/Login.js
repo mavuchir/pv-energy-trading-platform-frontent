@@ -11,9 +11,9 @@ import {
   FaIdCard,
   FaPhone,
   FaMapMarkerAlt,
+  FaCheckCircle,
 } from "react-icons/fa"
 import { useAuth } from "../../contexts/AuthContext"
-import api from "../../config/axios"
 import { motion, AnimatePresence } from "framer-motion"
 
 const Login = () => {
@@ -29,32 +29,38 @@ const Login = () => {
   const [location, setLocation] = useState("")
 
   const [formError, setFormError] = useState("")
+  const [formSuccess, setFormSuccess] = useState("")
   const [isLoginMode, setIsLoginMode] = useState(true)
-  const { login, loading, error, successMessage, clearMessages } = useAuth()
+  const { login, register, loading, error, successMessage, clearMessages } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
     if (clearMessages) {
       clearMessages()
     }
+    setFormError("")
+    setFormSuccess("")
   }, [clearMessages, isLoginMode])
 
   const handleLogin = async (e) => {
     e.preventDefault()
     setFormError("")
+    setFormSuccess("")
 
     try {
-      // Use the login function from AuthContext instead of direct API call
-      // This ensures proper state management
-      const success = await login(username, password)
+      // Use the login function from AuthContext
+      const userData = await login(username, password)
 
-      if (success) {
-        // The login function should handle token storage and state updates
-        console.log("Login successful, navigating to dashboard")
+      if (userData) {
+        setFormSuccess("Login successful! Redirecting...")
 
-        // Get user data from localStorage to check if configured
-        const userData = JSON.parse(localStorage.getItem("user") || "{}")
-        navigate(userData?.is_configured ? "/dashboard" : "/configuration")
+        // Check if user has completed configuration
+        const hasCompletedConfig = userData.is_configured || false
+
+        // Redirect based on configuration status
+        setTimeout(() => {
+          navigate(hasCompletedConfig ? "/dashboard" : "/configuration")
+        }, 1000)
       }
     } catch (err) {
       console.error("Login error:", err)
@@ -66,6 +72,7 @@ const Login = () => {
   const handleRegister = async (e) => {
     e.preventDefault()
     setFormError("")
+    setFormSuccess("")
 
     if (password !== confirmPassword) {
       setFormError("Passwords don't match")
@@ -81,7 +88,7 @@ const Login = () => {
         full_name: fullName,
         phone,
         location,
-        role: "household", // Explicitly set role to household
+        role: "household", // Default role
       }
 
       console.log("Submitting registration form with data:", {
@@ -89,19 +96,21 @@ const Login = () => {
         password: "********", // Don't log the actual password
       })
 
-      const response = await api.post("/auth/register", userData)
-      console.log("Registration successful, response:", response.data)
+      const response = await register(userData)
+      console.log("Registration successful, response:", response)
 
-      alert("Registration successful! Please log in.")
-      setIsLoginMode(true)
+      setFormSuccess("Registration successful! You can now log in.")
 
-      // Clear registration fields
-      setEmail("")
-      setFullName("")
-      setPhone("")
-      setLocation("")
-      setPassword("")
-      setConfirmPassword("")
+      // Clear registration fields and switch to login mode after a delay
+      setTimeout(() => {
+        setEmail("")
+        setFullName("")
+        setPhone("")
+        setLocation("")
+        setPassword("")
+        setConfirmPassword("")
+        setIsLoginMode(true)
+      }, 2000)
     } catch (error) {
       console.error("Registration failed in component:", error)
       const errorMessage = error.response?.data?.msg || error.message || "Registration failed. Please try again."
@@ -112,6 +121,7 @@ const Login = () => {
   const toggleMode = () => {
     setIsLoginMode(!isLoginMode)
     setFormError("")
+    setFormSuccess("")
   }
 
   return (
@@ -131,6 +141,8 @@ const Login = () => {
                   className="w-full max-w-md p-8"
                 >
                   <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">Sign in to Account</h2>
+
+                  {/* Error message */}
                   {(error || formError) && (
                     <div
                       className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6 flex items-start"
@@ -140,6 +152,18 @@ const Login = () => {
                       <span className="block sm:inline">{formError || error}</span>
                     </div>
                   )}
+
+                  {/* Success message */}
+                  {(successMessage || formSuccess) && (
+                    <div
+                      className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-6 flex items-start"
+                      role="alert"
+                    >
+                      <FaCheckCircle className="h-5 w-5 mr-2 mt-0.5" />
+                      <span className="block sm:inline">{formSuccess || successMessage}</span>
+                    </div>
+                  )}
+
                   <form className="space-y-6" onSubmit={handleLogin}>
                     <div className="relative">
                       <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -171,7 +195,7 @@ const Login = () => {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full bg-teal-600 text-white py-3 rounded-lg hover:bg-teal-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+                      className="w-full bg-teal-600 text-white py-3 rounded-lg hover:bg-teal-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-70"
                     >
                       {loading ? "Signing in..." : "SIGN IN"}
                     </button>
@@ -194,6 +218,8 @@ const Login = () => {
                   className="w-full max-w-md p-8 overflow-y-auto max-h-[650px]"
                 >
                   <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">Create Account</h2>
+
+                  {/* Error message */}
                   {(error || formError) && (
                     <div
                       className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6 flex items-start"
@@ -203,6 +229,18 @@ const Login = () => {
                       <span className="block sm:inline">{formError || error}</span>
                     </div>
                   )}
+
+                  {/* Success message */}
+                  {(successMessage || formSuccess) && (
+                    <div
+                      className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-6 flex items-start"
+                      role="alert"
+                    >
+                      <FaCheckCircle className="h-5 w-5 mr-2 mt-0.5" />
+                      <span className="block sm:inline">{formSuccess || successMessage}</span>
+                    </div>
+                  )}
+
                   <form className="space-y-4" onSubmit={handleRegister}>
                     <div className="relative">
                       <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -281,7 +319,7 @@ const Login = () => {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full bg-teal-600 text-white py-3 rounded-lg hover:bg-teal-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+                      className="w-full bg-teal-600 text-white py-3 rounded-lg hover:bg-teal-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-70"
                     >
                       {loading ? "Creating Account..." : "SIGN UP"}
                     </button>

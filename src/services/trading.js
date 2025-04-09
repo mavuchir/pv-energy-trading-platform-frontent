@@ -1,26 +1,40 @@
 import api from "./api"
 
 const TradingService = {
-  // Get market overview
-  getMarketOverview: async () => {
+  // Get market price
+  getMarketPrice: async () => {
     try {
-      const response = await api.get("/trade/market-overview")
+      const response = await api.get("/trade/market-price")
       return { success: true, data: response.data }
     } catch (error) {
-      console.error("Error fetching market overview:", error)
-      return { success: false, error: error.response?.data?.msg || "Failed to fetch market overview" }
+      console.error("Error fetching market price:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch market price" }
     }
   },
 
-  // Get market data
-  getMarketData: async (communityId = null) => {
+  // Get available trades
+  getAvailableTrades: async (communityId = null, maxPrice = null, minAmount = 0.1) => {
     try {
-      const url = communityId ? `/trade/market-data?community_id=${communityId}` : "/trade/market-data"
+      let url = "/trade/available-trades?min_amount=" + minAmount
+      if (communityId) url += `&community_id=${communityId}`
+      if (maxPrice) url += `&max_price=${maxPrice}`
+
       const response = await api.get(url)
       return { success: true, data: response.data }
     } catch (error) {
-      console.error("Error fetching market data:", error)
-      return { success: false, error: error.response?.data?.msg || "Failed to fetch market data" }
+      console.error("Error fetching available trades:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch available trades" }
+    }
+  },
+
+  // Get my trades
+  getMyTrades: async (role = "all", status = "all", limit = 20, offset = 0) => {
+    try {
+      const response = await api.get(`/trade/my-trades?role=${role}&status=${status}&limit=${limit}&offset=${offset}`)
+      return { success: true, data: response.data }
+    } catch (error) {
+      console.error("Error fetching my trades:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch my trades" }
     }
   },
 
@@ -49,69 +63,13 @@ const TradingService = {
   // Buy specific trade
   buyTrade: async (tradeId) => {
     try {
-      const response = await api.post(`/trade/buy/${tradeId}`)
+      const response = await api.post("/trade/buy-energy", { trade_id: tradeId })
       return { success: true, data: response.data }
     } catch (error) {
       console.error("Error buying trade:", error)
       return { success: false, error: error.response?.data?.msg || "Failed to buy trade" }
     }
   },
-
-  // Cancel trade
-  cancelTrade: async (tradeId) => {
-    try {
-      const response = await api.post(`/trade/cancel/${tradeId}`)
-      return { success: true, data: response.data }
-    } catch (error) {
-      console.error("Error cancelling trade:", error)
-      return { success: false, error: error.response?.data?.msg || "Failed to cancel trade" }
-    }
-  },
-
-  // Get trading history
-  getTradingHistory: async (period = "all") => {
-    try {
-      const response = await api.get(`/trade/history?period=${period}`)
-      return { success: true, data: response.data }
-    } catch (error) {
-      console.error("Error fetching trading history:", error)
-      return { success: false, error: error.response?.data?.msg || "Failed to fetch trading history" }
-    }
-  },
-
-  // Get price forecast
-  getPriceForecast: async () => {
-    try {
-      const response = await api.get("/trade/price-forecast")
-      return { success: true, data: response.data }
-    } catch (error) {
-      console.error("Error fetching price forecast:", error)
-      return { success: false, error: error.response?.data?.msg || "Failed to fetch price forecast" }
-    }
-  },
-
-  // Get optimal energy decision
-  getOptimalEnergyDecision: async (amount) => {
-    try {
-      const response = await api.get(`/trade/optimal-decision?amount=${amount}`)
-      return { success: true, data: response.data }
-    } catch (error) {
-      console.error("Error fetching optimal energy decision:", error)
-      return { success: false, error: error.response?.data?.msg || "Failed to fetch optimal energy decision" }
-    }
-  },
-
-  // Update trading preferences
-  updateTradingPreferences: async (preferences) => {
-    try {
-      const response = await api.post("/trade/preferences", preferences)
-      return { success: true, data: response.data }
-    } catch (error) {
-      console.error("Error updating trading preferences:", error)
-      return { success: false, error: error.response?.data?.msg || "Failed to update trading preferences" }
-    }
-  },
 }
 
 export default TradingService
-

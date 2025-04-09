@@ -1,128 +1,159 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
+import {
+  FaPlug,
+  FaLightbulb,
+  FaTrash,
+  FaPencilAlt,
+  FaPlus,
+  FaPowerOff,
+  FaExclamationTriangle,
+  FaCheckCircle,
+  FaChartLine,
+  FaHome,
+  FaUtensils,
+  FaTv,
+  FaSnowflake,
+  FaWater,
+  FaDesktop,
+  FaSpinner,
+} from "react-icons/fa"
+import ApplianceService from "../services/appliance"
 import { useAuth } from "../contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/button"
-import { Input } from "../components/ui/Input"
-import { Switch } from "../components/ui/switch"
-import { Tabs, TabsList, TabsTrigger } from "../components/ui/Tabs"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../components/ui/dialog"
-import { Label } from "../components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
-import { Slider } from "../components/ui/Slider"
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
-import {
-  FaExclamationTriangle,
-  FaPlug,
-  FaLightbulb,
-  FaThermometerHalf,
-  FaTv,
-  FaWater,
-  FaWifi,
-  FaTrash,
-  FaEdit,
-  FaPlus,
-  FaChartLine,
-  FaClock,
-  FaCalendarAlt,
-} from "react-icons/fa"
-import ApplianceService from "../services/appliance"
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts"
+
+// Common appliance presets for quick selection
+const APPLIANCE_PRESETS = [
+  { name: "Refrigerator", power_consumption: 150, daily_usage_hours: 24, type: "kitchen", location: "kitchen" },
+  { name: "Washing Machine", power_consumption: 500, daily_usage_hours: 1, type: "utility", location: "utility_room" },
+  { name: "Air Conditioner", power_consumption: 1500, daily_usage_hours: 6, type: "hvac", location: "living_room" },
+  { name: "TV", power_consumption: 100, daily_usage_hours: 4, type: "entertainment", location: "living_room" },
+  { name: "Laptop", power_consumption: 50, daily_usage_hours: 8, type: "electronics", location: "bedroom" },
+  { name: "Oven", power_consumption: 2400, daily_usage_hours: 1, type: "kitchen", location: "kitchen" },
+  { name: "Microwave", power_consumption: 1000, daily_usage_hours: 0.5, type: "kitchen", location: "kitchen" },
+  { name: "Dishwasher", power_consumption: 1200, daily_usage_hours: 1, type: "kitchen", location: "kitchen" },
+  { name: "Lighting", power_consumption: 60, daily_usage_hours: 5, type: "lighting", location: "living_room" },
+  { name: "Water Heater", power_consumption: 4000, daily_usage_hours: 3, type: "utility", location: "bathroom" },
+]
+
+// Location options
+const LOCATIONS = [
+  { value: "living_room", label: "Living Room", icon: FaHome },
+  { value: "kitchen", label: "Kitchen", icon: FaUtensils },
+  { value: "bedroom", label: "Bedroom", icon: FaLightbulb },
+  { value: "bathroom", label: "Bathroom", icon: FaWater },
+  { value: "utility_room", label: "Utility Room", icon: FaPlug },
+  { value: "office", label: "Office", icon: FaDesktop },
+]
+
+// Type options
+const TYPES = [
+  { value: "lighting", label: "Lighting", icon: FaLightbulb },
+  { value: "kitchen", label: "Kitchen", icon: FaUtensils },
+  { value: "entertainment", label: "Entertainment", icon: FaTv },
+  { value: "hvac", label: "HVAC", icon: FaSnowflake },
+  { value: "utility", label: "Utility", icon: FaPlug },
+  { value: "electronics", label: "Electronics", icon: FaDesktop },
+  { value: "other", label: "Other", icon: FaPlug },
+]
+
+// Colors for pie chart
+const COLORS = [
+  "#0088FE",
+  "#00C49F",
+  "#FFBB28",
+  "#FF8042",
+  "#8884d8",
+  "#82ca9d",
+  "#ffc658",
+  "#8dd1e1",
+  "#a4de6c",
+  "#d0ed57",
+]
 
 const ApplianceControl = () => {
   const [appliances, setAppliances] = useState([])
   const [applianceStatus, setApplianceStatus] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [editingAppliance, setEditingAppliance] = useState(null)
+  const [usageSummary, setUsageSummary] = useState(null)
   const [selectedPeriod, setSelectedPeriod] = useState("day")
-  const [selectedAppliance, setSelectedAppliance] = useState(null)
-  const [applianceUsageData, setApplianceUsageData] = useState([])
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState("appliances")
+
   const [newAppliance, setNewAppliance] = useState({
     name: "",
     type: "other",
     power_consumption: 0,
-    location: "living_room",
+    daily_usage_hours: 0,
     is_smart: false,
-    daily_usage_hours: 2,
+    location: "living_room",
   })
-  const [scheduleSettings, setScheduleSettings] = useState({
-    appliance_id: null,
-    schedule_type: "daily",
-    start_time: "08:00",
-    end_time: "18:00",
-    days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
-    is_active: true,
-  })
-  const [activeTab, setActiveTab] = useState("all")
-  const { user } = useAuth()
 
-  // Fetch appliances
-  const fetchAppliances = async () => {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+
+  // Fetch appliances and usage data
+  const fetchData = async () => {
     try {
       setLoading(true)
-      const response = await ApplianceService.getAppliances()
 
-      if (response.success) {
-        setAppliances(response.data)
+      // Fetch all appliances
+      const appliancesResponse = await ApplianceService.getAllAppliances()
+
+      if (appliancesResponse.success) {
+        setAppliances(appliancesResponse.appliances || [])
 
         // Initialize status for each appliance
         const initialStatus = {}
-        response.data.forEach((appliance) => {
-          initialStatus[appliance.id] = appliance.is_on || false
-        })
+        if (Array.isArray(appliancesResponse.appliances)) {
+          appliancesResponse.appliances.forEach((appliance) => {
+            initialStatus[appliance.id] = appliance.is_on || false
+          })
+        }
         setApplianceStatus(initialStatus)
       } else {
-        setError(response.error || "Failed to fetch appliances")
+        setError(appliancesResponse.error || "Failed to fetch appliances")
       }
-    } catch (err) {
-      console.error("Error fetching appliances:", err)
-      setError("Failed to fetch appliances. Please try again.")
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  // Fetch appliance usage data
-  const fetchApplianceUsageData = async (applianceId) => {
-    try {
-      setLoading(true)
-      const response = await ApplianceService.getApplianceUsageHistory(applianceId, selectedPeriod)
-
-      if (response.success) {
-        setApplianceUsageData(response.data.usage_history || [])
-      } else {
-        setError(response.error || "Failed to fetch appliance usage data")
+      // Fetch usage summary
+      const usageSummaryResponse = await ApplianceService.getUsageSummary(selectedPeriod)
+      if (usageSummaryResponse.success) {
+        setUsageSummary(usageSummaryResponse)
       }
+
+      setError(null)
     } catch (err) {
-      console.error("Error fetching appliance usage data:", err)
-      setError("Failed to fetch appliance usage data. Please try again.")
+      console.error("Error fetching data:", err)
+      setError("Failed to fetch appliance data. Please try again.")
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchAppliances()
-  }, [])
+    fetchData()
+  }, [selectedPeriod])
 
-  useEffect(() => {
-    if (selectedAppliance) {
-      fetchApplianceUsageData(selectedAppliance.id)
-    }
-  }, [selectedAppliance, selectedPeriod])
-
-  // Toggle appliance status
-  const toggleApplianceStatus = async (id, currentStatus) => {
+  const toggleApplianceStatus = async (id, name, currentStatus) => {
     try {
       // Optimistically update UI
       setApplianceStatus((prev) => ({
@@ -133,14 +164,19 @@ const ApplianceControl = () => {
       // Send request to backend
       const response = await ApplianceService.toggleAppliance(id, !currentStatus)
 
-      if (!response.success) {
-        // Revert UI state on error
-        setApplianceStatus((prev) => ({
-          ...prev,
-          [id]: currentStatus,
-        }))
-        setError(response.error || "Failed to toggle appliance status")
+      if (response.success) {
+        setSuccess(`${name} turned ${!currentStatus ? "on" : "off"} successfully`)
+
+        // Refresh data to update consumption
+        setTimeout(() => fetchData(), 1000)
+      } else {
+        throw new Error(response.error)
       }
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
     } catch (err) {
       console.error("Error toggling appliance status:", err)
 
@@ -154,23 +190,33 @@ const ApplianceControl = () => {
     }
   }
 
-  // Add new appliance
-  const handleAddAppliance = async () => {
+  const handleAddAppliance = async (e) => {
+    e.preventDefault()
+
     try {
       setLoading(true)
+
+      if (!newAppliance.name || newAppliance.power_consumption <= 0) {
+        setError("Please provide a name and valid power consumption")
+        return
+      }
+
       const response = await ApplianceService.addAppliance(newAppliance)
 
       if (response.success) {
-        setIsAddDialogOpen(false)
+        setSuccess("Appliance added successfully")
+        setShowAddForm(false)
         setNewAppliance({
           name: "",
           type: "other",
           power_consumption: 0,
-          location: "living_room",
+          daily_usage_hours: 0,
           is_smart: false,
-          daily_usage_hours: 2,
+          location: "living_room",
         })
-        fetchAppliances()
+
+        // Refresh appliance list
+        fetchData()
       } else {
         setError(response.error || "Failed to add appliance")
       }
@@ -182,15 +228,25 @@ const ApplianceControl = () => {
     }
   }
 
-  // Update appliance
-  const handleUpdateAppliance = async () => {
+  const handleUpdateAppliance = async (e) => {
+    e.preventDefault()
+
     try {
       setLoading(true)
-      const response = await ApplianceService.updateAppliance(selectedAppliance.id, selectedAppliance)
+
+      if (!editingAppliance.name || editingAppliance.power_consumption <= 0) {
+        setError("Please provide a name and valid power consumption")
+        return
+      }
+
+      const response = await ApplianceService.updateAppliance(editingAppliance.id, editingAppliance)
 
       if (response.success) {
-        setIsEditDialogOpen(false)
-        fetchAppliances()
+        setSuccess("Appliance updated successfully")
+        setEditingAppliance(null)
+
+        // Refresh appliance list
+        fetchData()
       } else {
         setError(response.error || "Failed to update appliance")
       }
@@ -202,21 +258,21 @@ const ApplianceControl = () => {
     }
   }
 
-  // Delete appliance
-  const handleDeleteAppliance = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this appliance?")) {
+  const handleDeleteAppliance = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to delete ${name}?`)) {
       return
     }
 
     try {
       setLoading(true)
+
       const response = await ApplianceService.deleteAppliance(id)
 
       if (response.success) {
-        fetchAppliances()
-        if (selectedAppliance && selectedAppliance.id === id) {
-          setSelectedAppliance(null)
-        }
+        setSuccess(`${name} deleted successfully`)
+
+        // Refresh appliance list
+        fetchData()
       } else {
         setError(response.error || "Failed to delete appliance")
       }
@@ -228,71 +284,78 @@ const ApplianceControl = () => {
     }
   }
 
-  // Save appliance schedule
-  const handleSaveSchedule = async () => {
+  const addPresetAppliance = async (preset) => {
     try {
       setLoading(true)
-      // This would typically call a backend endpoint to save the schedule
-      // For now, we'll just simulate success
-      setTimeout(() => {
-        setIsScheduleDialogOpen(false)
-        setLoading(false)
-      }, 1000)
+
+      const response = await ApplianceService.addAppliance(preset)
+
+      if (response.success) {
+        setSuccess(`${preset.name} added successfully`)
+
+        // Refresh appliance list
+        fetchData()
+      } else {
+        setError(response.error || "Failed to add preset appliance")
+      }
     } catch (err) {
-      console.error("Error saving schedule:", err)
-      setError("Failed to save schedule. Please try again.")
+      console.error("Error adding preset appliance:", err)
+      setError("Failed to add preset appliance. Please try again.")
+    } finally {
       setLoading(false)
     }
   }
 
   // Get icon for appliance type
-  const getApplianceIcon = (type) => {
-    switch (type) {
-      case "light":
-        return <FaLightbulb />
-      case "hvac":
-        return <FaThermometerHalf />
-      case "entertainment":
-        return <FaTv />
-      case "kitchen":
-        return <FaWater />
-      case "smart_device":
-        return <FaWifi />
-      default:
-        return <FaPlug />
-    }
+  const getTypeIcon = (type) => {
+    const typeObj = TYPES.find((t) => t.value === type) || TYPES[6] // Default to "other"
+    const Icon = typeObj.icon
+    return <Icon />
   }
 
-  // Format appliance usage data for charts
-  const formatApplianceUsageData = () => {
-    return applianceUsageData.map((item) => ({
-      time: new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      date: new Date(item.timestamp).toLocaleDateString([], { month: "short", day: "numeric" }),
-      energy: item.energy_consumed,
-      status: item.status ? 1 : 0,
+  // Get icon for location
+  const getLocationIcon = (location) => {
+    const locationObj = LOCATIONS.find((l) => l.value === location) || LOCATIONS[0] // Default to living room
+    const Icon = locationObj.icon
+    return <Icon />
+  }
+
+  // Prepare data for pie chart
+  const preparePieChartData = () => {
+    if (!usageSummary || !usageSummary.appliances) return []
+
+    return usageSummary.appliances.map((appliance) => ({
+      name: appliance.name,
+      value: appliance.energy_consumed,
     }))
   }
 
-  // Filter appliances by type
-  const getFilteredAppliances = () => {
-    if (!appliances || !Array.isArray(appliances) || appliances.length === 0) return []
+  // Prepare data for bar chart by location
+  const prepareLocationChartData = () => {
+    if (!usageSummary || !usageSummary.appliances) return []
 
-    if (activeTab === "all") {
-      return appliances
-    }
-    return appliances.filter((appliance) => appliance.type === activeTab)
+    // Group by location
+    const locationGroups = {}
+
+    usageSummary.appliances.forEach((appliance) => {
+      const location = appliance.location || "other"
+      if (!locationGroups[location]) {
+        locationGroups[location] = 0
+      }
+      locationGroups[location] += appliance.energy_consumed
+    })
+
+    // Convert to array for chart
+    return Object.entries(locationGroups).map(([location, energy]) => {
+      const locationObj = LOCATIONS.find((l) => l.value === location) || { label: location }
+      return {
+        name: locationObj.label || location,
+        energy: energy,
+      }
+    })
   }
 
-  // Calculate total power consumption of active appliances
-  const calculateTotalActivePower = () => {
-    if (!appliances || !Array.isArray(appliances) || appliances.length === 0) return 0
-
-    return appliances
-      .filter((appliance) => applianceStatus[appliance.id])
-      .reduce((total, appliance) => total + (appliance.power_consumption || 0), 0)
-  }
-
-  if (loading && (!appliances || appliances.length === 0)) {
+  if (loading && appliances.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-teal-600"></div>
@@ -304,14 +367,25 @@ const ApplianceControl = () => {
     <div className="container mx-auto p-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-teal-600">Appliance Control</h1>
-          <p className="text-gray-600">Manage and monitor your household appliances</p>
+          <h1 className="text-3xl font-bold text-teal-600">Appliance Management</h1>
+          <p className="text-gray-600">Manage your household appliances and monitor energy usage</p>
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
-          <Button onClick={() => setIsAddDialogOpen(true)} className="bg-teal-600 hover:bg-teal-700">
-            <FaPlus className="mr-2" />
-            Add Appliance
+          <div className="flex items-center bg-white border rounded-md p-1.5 shadow-sm">
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="border-none focus:ring-0 text-sm font-medium"
+            >
+              <option value="day">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+            </select>
+          </div>
+
+          <Button onClick={() => navigate("/dashboard")} className="bg-gray-200 hover:bg-gray-300 text-gray-800">
+            Back to Dashboard
           </Button>
         </div>
       </div>
@@ -327,600 +401,539 @@ const ApplianceControl = () => {
         </Card>
       )}
 
-      {/* Summary Card */}
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-teal-50 p-4 rounded-lg">
-              <h3 className="font-medium text-teal-700 mb-2">Total Appliances</h3>
-              <p className="text-2xl font-bold">{Array.isArray(appliances) ? appliances.length : 0}</p>
-              <p className="text-sm text-gray-600">
-                {Array.isArray(appliances) ? appliances.filter((a) => a.is_smart).length : 0} smart devices
-              </p>
+      {success && (
+        <Card className="bg-green-50 mb-6">
+          <CardContent className="pt-6">
+            <div className="flex items-center text-green-600">
+              <FaCheckCircle className="mr-2" />
+              <p>{success}</p>
             </div>
-            <div className="bg-teal-50 p-4 rounded-lg">
-              <h3 className="font-medium text-teal-700 mb-2">Active Appliances</h3>
-              <p className="text-2xl font-bold">{Object.values(applianceStatus).filter((status) => status).length}</p>
-              <p className="text-sm text-gray-600">{calculateTotalActivePower().toFixed(0)} watts in use</p>
-            </div>
-            <div className="bg-teal-50 p-4 rounded-lg">
-              <h3 className="font-medium text-teal-700 mb-2">Estimated Daily Usage</h3>
-              <p className="text-2xl font-bold">
-                {Array.isArray(appliances)
-                  ? appliances
-                      .reduce(
-                        (total, appliance) =>
-                          total + ((appliance.power_consumption || 0) * (appliance.daily_usage_hours || 0)) / 1000,
-                        0,
-                      )
-                      .toFixed(1)
-                  : "0.0"}{" "}
-                kWh
-              </p>
-              <p className="text-sm text-gray-600">Based on configured appliances</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Appliance List */}
-        <div className="md:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Appliances</CardTitle>
-              <CardDescription>Control and manage your connected devices</CardDescription>
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-2">
-                <TabsList>
-                  <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="light">Lighting</TabsTrigger>
-                  <TabsTrigger value="hvac">HVAC</TabsTrigger>
-                  <TabsTrigger value="kitchen">Kitchen</TabsTrigger>
-                  <TabsTrigger value="entertainment">Entertainment</TabsTrigger>
-                  <TabsTrigger value="smart_device">Smart Devices</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </CardHeader>
-            <CardContent>
-              {getFilteredAppliances().length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {getFilteredAppliances().map((appliance) => (
-                    <div
-                      key={appliance.id}
-                      className={`p-4 rounded-lg border ${applianceStatus[appliance.id] ? "bg-teal-50 border-teal-200" : "bg-white border-gray-200"}`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-start">
-                          <div
-                            className={`p-2 rounded-full mr-3 ${applianceStatus[appliance.id] ? "bg-teal-200 text-teal-700" : "bg-gray-100 text-gray-500"}`}
-                          >
-                            {getApplianceIcon(appliance.type)}
-                          </div>
-                          <div>
-                            <h3 className="font-medium">{appliance.name}</h3>
-                            <p className="text-sm text-gray-500">{appliance.location}</p>
-                            <p className="text-xs text-gray-500 mt-1">{appliance.power_consumption} watts</p>
-                          </div>
-                        </div>
-                        <Switch
-                          checked={applianceStatus[appliance.id] || false}
-                          onCheckedChange={() => toggleApplianceStatus(appliance.id, applianceStatus[appliance.id])}
+      {/* Tabs */}
+      <div className="flex border-b mb-6">
+        <button
+          className={`py-2 px-4 font-medium ${
+            activeTab === "appliances"
+              ? "text-teal-600 border-b-2 border-teal-600"
+              : "text-gray-500 hover:text-teal-600"
+          }`}
+          onClick={() => setActiveTab("appliances")}
+        >
+          <FaPlug className="inline mr-2" />
+          Appliances
+        </button>
+        <button
+          className={`py-2 px-4 font-medium ${
+            activeTab === "usage" ? "text-teal-600 border-b-2 border-teal-600" : "text-gray-500 hover:text-teal-600"
+          }`}
+          onClick={() => setActiveTab("usage")}
+        >
+          <FaChartLine className="inline mr-2" />
+          Usage Analytics
+        </button>
+      </div>
+
+      {activeTab === "appliances" ? (
+        <>
+          {/* Appliance Management */}
+          <div className="grid grid-cols-1 gap-6 mb-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex justify-between items-center">
+                  <CardTitle>Your Appliances</CardTitle>
+                  <Button onClick={() => setShowAddForm(!showAddForm)} className="bg-teal-600 hover:bg-teal-700">
+                    {showAddForm ? (
+                      "Cancel"
+                    ) : (
+                      <>
+                        <FaPlus className="mr-2" /> Add Appliance
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {showAddForm && (
+                  <div className="bg-gray-50 p-4 rounded-lg mb-6">
+                    <h3 className="text-lg font-medium mb-4">Add New Appliance</h3>
+                    <form onSubmit={handleAddAppliance} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <input
+                          type="text"
+                          value={newAppliance.name}
+                          onChange={(e) => setNewAppliance({ ...newAppliance, name: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                          placeholder="e.g., Living Room TV"
+                          required
                         />
                       </div>
-                      <div className="flex mt-4 justify-between">
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedAppliance(appliance)
-                              setIsEditDialogOpen(true)
-                            }}
-                          >
-                            <FaEdit className="mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteAppliance(appliance.id)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <FaTrash className="mr-1" />
-                            Delete
-                          </Button>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedAppliance(appliance)
-                            fetchApplianceUsageData(appliance.id)
-                          }}
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Power Consumption (W)</label>
+                        <input
+                          type="number"
+                          value={newAppliance.power_consumption}
+                          onChange={(e) =>
+                            setNewAppliance({ ...newAppliance, power_consumption: Number(e.target.value) })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                          placeholder="e.g., 100"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Daily Usage (hours)</label>
+                        <input
+                          type="number"
+                          value={newAppliance.daily_usage_hours}
+                          onChange={(e) =>
+                            setNewAppliance({ ...newAppliance, daily_usage_hours: Number(e.target.value) })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                          placeholder="e.g., 4"
+                          min="0"
+                          max="24"
+                          step="0.5"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                        <select
+                          value={newAppliance.type}
+                          onChange={(e) => setNewAppliance({ ...newAppliance, type: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
                         >
-                          <FaChartLine className="mr-1" />
-                          Details
+                          {TYPES.map((type) => (
+                            <option key={type.value} value={type.value}>
+                              {type.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                        <select
+                          value={newAppliance.location}
+                          onChange={(e) => setNewAppliance({ ...newAppliance, location: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                        >
+                          {LOCATIONS.map((location) => (
+                            <option key={location.value} value={location.value}>
+                              {location.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="is_smart"
+                          checked={newAppliance.is_smart}
+                          onChange={(e) => setNewAppliance({ ...newAppliance, is_smart: e.target.checked })}
+                          className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="is_smart" className="ml-2 block text-sm text-gray-700">
+                          Smart Appliance
+                        </label>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={loading}>
+                          {loading ? <FaSpinner className="animate-spin mr-2" /> : <FaPlus className="mr-2" />}
+                          Add Appliance
                         </Button>
                       </div>
+                    </form>
+
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Quick Add:</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {APPLIANCE_PRESETS.map((preset, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => addPresetAppliance(preset)}
+                            className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-full text-xs font-medium text-gray-800 transition-colors duration-200"
+                          >
+                            {preset.name}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  ))}
+                  </div>
+                )}
+
+                {editingAppliance && (
+                  <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                    <h3 className="text-lg font-medium mb-4">Edit Appliance</h3>
+                    <form onSubmit={handleUpdateAppliance} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <input
+                          type="text"
+                          value={editingAppliance.name}
+                          onChange={(e) => setEditingAppliance({ ...editingAppliance, name: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Power Consumption (W)</label>
+                        <input
+                          type="number"
+                          value={editingAppliance.power_consumption}
+                          onChange={(e) =>
+                            setEditingAppliance({ ...editingAppliance, power_consumption: Number(e.target.value) })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Daily Usage (hours)</label>
+                        <input
+                          type="number"
+                          value={editingAppliance.daily_usage_hours}
+                          onChange={(e) =>
+                            setEditingAppliance({ ...editingAppliance, daily_usage_hours: Number(e.target.value) })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                          min="0"
+                          max="24"
+                          step="0.5"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                        <select
+                          value={editingAppliance.type}
+                          onChange={(e) => setEditingAppliance({ ...editingAppliance, type: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                        >
+                          {TYPES.map((type) => (
+                            <option key={type.value} value={type.value}>
+                              {type.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                        <select
+                          value={editingAppliance.location}
+                          onChange={(e) => setEditingAppliance({ ...editingAppliance, location: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                        >
+                          {LOCATIONS.map((location) => (
+                            <option key={location.value} value={location.value}>
+                              {location.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="edit_is_smart"
+                          checked={editingAppliance.is_smart}
+                          onChange={(e) => setEditingAppliance({ ...editingAppliance, is_smart: e.target.checked })}
+                          className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="edit_is_smart" className="ml-2 block text-sm text-gray-700">
+                          Smart Appliance
+                        </label>
+                      </div>
+
+                      <div className="md:col-span-2 flex gap-2">
+                        <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={loading}>
+                          {loading ? <FaSpinner className="animate-spin mr-2" /> : <FaPencilAlt className="mr-2" />}
+                          Update Appliance
+                        </Button>
+                        <Button
+                          type="button"
+                          className="bg-gray-600 hover:bg-gray-700"
+                          onClick={() => setEditingAppliance(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {appliances.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FaPlug className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-lg font-medium text-gray-900">No appliances found</h3>
+                    <p className="mt-1 text-sm text-gray-500">Get started by adding your first appliance.</p>
+                    <div className="mt-6">
+                      <Button onClick={() => setShowAddForm(true)} className="bg-teal-600 hover:bg-teal-700">
+                        <FaPlus className="mr-2" /> Add Appliance
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th
+                            scope="col"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Appliance
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Power
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Location
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Usage
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Status
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {appliances.map((appliance) => (
+                          <tr key={appliance.id}>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center bg-gray-100 rounded-full">
+                                  {getTypeIcon(appliance.type)}
+                                </div>
+                                <div className="ml-4">
+                                  <div className="text-sm font-medium text-gray-900">{appliance.name}</div>
+                                  <div className="text-xs text-gray-500">
+                                    {TYPES.find((t) => t.value === appliance.type)?.label || "Other"}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{appliance.power_consumption} W</div>
+                              <div className="text-xs text-gray-500">
+                                {((appliance.power_consumption * appliance.daily_usage_hours) / 1000).toFixed(2)}{" "}
+                                kWh/day
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="flex-shrink-0 h-6 w-6 flex items-center justify-center text-gray-500">
+                                  {getLocationIcon(appliance.location)}
+                                </div>
+                                <div className="ml-2 text-sm text-gray-900">
+                                  {LOCATIONS.find((l) => l.value === appliance.location)?.label || appliance.location}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{appliance.daily_usage_hours} hours/day</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button
+                                onClick={() =>
+                                  toggleApplianceStatus(appliance.id, appliance.name, applianceStatus[appliance.id])
+                                }
+                                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                                  applianceStatus[appliance.id]
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                <div
+                                  className={`h-2 w-2 rounded-full mr-2 ${
+                                    applianceStatus[appliance.id] ? "bg-green-500" : "bg-gray-500"
+                                  }`}
+                                ></div>
+                                {applianceStatus[appliance.id] ? "On" : "Off"}
+                              </button>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() =>
+                                    toggleApplianceStatus(appliance.id, appliance.name, applianceStatus[appliance.id])
+                                  }
+                                  className={`p-1 rounded-full ${
+                                    applianceStatus[appliance.id]
+                                      ? "bg-green-100 text-green-600 hover:bg-green-200"
+                                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                  }`}
+                                  title={applianceStatus[appliance.id] ? "Turn Off" : "Turn On"}
+                                >
+                                  <FaPowerOff className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => setEditingAppliance(appliance)}
+                                  className="p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200"
+                                  title="Edit"
+                                >
+                                  <FaPencilAlt className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteAppliance(appliance.id, appliance.name)}
+                                  className="p-1 rounded-full bg-red-100 text-red-600 hover:bg-red-200"
+                                  title="Delete"
+                                >
+                                  <FaTrash className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Usage Analytics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Energy Consumption by Appliance</CardTitle>
+                <CardDescription>
+                  {selectedPeriod === "day" ? "Today's" : selectedPeriod === "week" ? "This week's" : "This month's"}{" "}
+                  energy usage breakdown
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  {usageSummary ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={preparePieChartData()}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {preparePieChartData().map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => [`${value.toFixed(2)} kWh`, ""]} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-gray-500">No usage data available</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Energy Usage by Location</CardTitle>
+                <CardDescription>Where energy is being consumed in your home</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  {usageSummary ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={prepareLocationChartData()}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis unit=" kWh" />
+                        <Tooltip formatter={(value) => [`${value.toFixed(2)} kWh`, ""]} />
+                        <Bar dataKey="energy" fill="#4FD1C5" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-gray-500">No location data available</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Total Energy Consumption</CardTitle>
+              <CardDescription>Summary of your energy usage for the selected period</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {usageSummary ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-gray-50 p-4 rounded-lg text-center">
+                    <h3 className="text-lg font-medium text-gray-700">Total Consumption</h3>
+                    <p className="text-3xl font-bold text-teal-600 mt-2">
+                      {usageSummary.total_energy_consumed.toFixed(2)} kWh
+                    </p>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-lg text-center">
+                    <h3 className="text-lg font-medium text-gray-700">Estimated Cost</h3>
+                    <p className="text-3xl font-bold text-teal-600 mt-2">
+                      ${(usageSummary.total_energy_consumed * 0.15).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-gray-500">At $0.15/kWh</p>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-lg text-center">
+                    <h3 className="text-lg font-medium text-gray-700">Active Appliances</h3>
+                    <p className="text-3xl font-bold text-teal-600 mt-2">
+                      {usageSummary.appliances.filter((a) => a.is_on).length} / {usageSummary.appliances.length}
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <FaPlug className="mx-auto text-gray-300 text-4xl mb-2" />
-                  <p className="text-gray-500">No appliances found in this category</p>
-                  <Button variant="outline" className="mt-4" onClick={() => setIsAddDialogOpen(true)}>
-                    <FaPlus className="mr-2" />
-                    Add Appliance
-                  </Button>
+                  <p className="text-gray-500">No consumption data available</p>
                 </div>
               )}
             </CardContent>
           </Card>
-        </div>
-
-        {/* Appliance Details */}
-        <div className="md:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>Appliance Details</CardTitle>
-              <CardDescription>
-                {selectedAppliance ? `Usage data for ${selectedAppliance.name}` : "Select an appliance to view details"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {selectedAppliance ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div
-                        className={`p-2 rounded-full mr-3 ${applianceStatus[selectedAppliance.id] ? "bg-teal-200 text-teal-700" : "bg-gray-100 text-gray-500"}`}
-                      >
-                        {getApplianceIcon(selectedAppliance.type)}
-                      </div>
-                      <div>
-                        <h3 className="font-medium">{selectedAppliance.name}</h3>
-                        <p className="text-sm text-gray-500">{selectedAppliance.location}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <span
-                        className={`text-sm mr-2 ${applianceStatus[selectedAppliance.id] ? "text-green-600" : "text-gray-500"}`}
-                      >
-                        {applianceStatus[selectedAppliance.id] ? "ON" : "OFF"}
-                      </span>
-                      <Switch
-                        checked={applianceStatus[selectedAppliance.id] || false}
-                        onCheckedChange={() =>
-                          toggleApplianceStatus(selectedAppliance.id, applianceStatus[selectedAppliance.id])
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-gray-50 p-2 rounded">
-                      <p className="text-gray-500">Power</p>
-                      <p className="font-medium">{selectedAppliance.power_consumption} watts</p>
-                    </div>
-                    <div className="bg-gray-50 p-2 rounded">
-                      <p className="text-gray-500">Type</p>
-                      <p className="font-medium capitalize">{selectedAppliance.type.replace("_", " ")}</p>
-                    </div>
-                    <div className="bg-gray-50 p-2 rounded">
-                      <p className="text-gray-500">Daily Usage</p>
-                      <p className="font-medium">{selectedAppliance.daily_usage_hours} hours</p>
-                    </div>
-                    <div className="bg-gray-50 p-2 rounded">
-                      <p className="text-gray-500">Smart Device</p>
-                      <p className="font-medium">{selectedAppliance.is_smart ? "Yes" : "No"}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium">Usage History</h3>
-                    <div className="flex items-center bg-white border rounded-md p-1 shadow-sm">
-                      <FaCalendarAlt className="text-teal-600 mr-2 ml-1" />
-                      <select
-                        value={selectedPeriod}
-                        onChange={(e) => setSelectedPeriod(e.target.value)}
-                        className="border-none focus:ring-0 text-xs font-medium"
-                      >
-                        <option value="day">Today</option>
-                        <option value="week">This Week</option>
-                        <option value="month">This Month</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {applianceUsageData.length > 0 ? (
-                    <div className="h-[200px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={formatApplianceUsageData()}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey={selectedPeriod === "day" ? "time" : "date"} tick={{ fontSize: 10 }} />
-                          <YAxis
-                            label={{ value: "Energy (kWh)", angle: -90, position: "insideLeft", fontSize: 10 }}
-                            tick={{ fontSize: 10 }}
-                          />
-                          <Tooltip formatter={(value) => [`${value} kWh`, "Energy"]} />
-                          <Bar dataKey="energy" name="Energy Used" fill="#4FD1C5" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ) : (
-                    <div className="flex justify-center items-center h-[200px] bg-gray-50 rounded-md">
-                      <p className="text-gray-500 text-sm">No usage data available</p>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between mt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setScheduleSettings({
-                          ...scheduleSettings,
-                          appliance_id: selectedAppliance.id,
-                        })
-                        setIsScheduleDialogOpen(true)
-                      }}
-                    >
-                      <FaClock className="mr-2" />
-                      Schedule
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSelectedAppliance(null)}>
-                      Close Details
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-[400px] bg-gray-50 rounded-md">
-                  <FaPlug className="text-gray-300 text-4xl mb-2" />
-                  <p className="text-gray-500">Select an appliance to view details</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Add Appliance Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Appliance</DialogTitle>
-            <DialogDescription>Enter the details of your appliance to add it to your system.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="name"
-                value={newAppliance.name}
-                onChange={(e) => setNewAppliance({ ...newAppliance, name: e.target.value })}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="type" className="text-right">
-                Type
-              </Label>
-              <Select
-                value={newAppliance.type}
-                onValueChange={(value) => setNewAppliance({ ...newAppliance, type: value })}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="light">Lighting</SelectItem>
-                  <SelectItem value="hvac">HVAC</SelectItem>
-                  <SelectItem value="kitchen">Kitchen</SelectItem>
-                  <SelectItem value="entertainment">Entertainment</SelectItem>
-                  <SelectItem value="smart_device">Smart Device</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="power" className="text-right">
-                Power (watts)
-              </Label>
-              <Input
-                id="power"
-                type="number"
-                value={newAppliance.power_consumption}
-                onChange={(e) => setNewAppliance({ ...newAppliance, power_consumption: Number(e.target.value) })}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="location" className="text-right">
-                Location
-              </Label>
-              <Select
-                value={newAppliance.location}
-                onValueChange={(value) => setNewAppliance({ ...newAppliance, location: value })}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select location" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="living_room">Living Room</SelectItem>
-                  <SelectItem value="kitchen">Kitchen</SelectItem>
-                  <SelectItem value="bedroom">Bedroom</SelectItem>
-                  <SelectItem value="bathroom">Bathroom</SelectItem>
-                  <SelectItem value="office">Office</SelectItem>
-                  <SelectItem value="outdoor">Outdoor</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="usage" className="text-right">
-                Daily Usage (hours)
-              </Label>
-              <div className="col-span-3 flex items-center gap-2">
-                <Slider
-                  value={[newAppliance.daily_usage_hours]}
-                  min={0}
-                  max={24}
-                  step={0.5}
-                  onValueChange={(value) => setNewAppliance({ ...newAppliance, daily_usage_hours: value[0] })}
-                  className="flex-1"
-                />
-                <span className="w-12 text-center">{newAppliance.daily_usage_hours}h</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="smart" className="text-right">
-                Smart Device
-              </Label>
-              <div className="flex items-center col-span-3">
-                <Switch
-                  id="smart"
-                  checked={newAppliance.is_smart}
-                  onCheckedChange={(checked) => setNewAppliance({ ...newAppliance, is_smart: checked })}
-                />
-                <Label htmlFor="smart" className="ml-2">
-                  {newAppliance.is_smart ? "Yes" : "No"}
-                </Label>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddAppliance} disabled={!newAppliance.name}>
-              Add Appliance
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Appliance Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Appliance</DialogTitle>
-            <DialogDescription>Update the details of your appliance.</DialogDescription>
-          </DialogHeader>
-          {selectedAppliance && (
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-name" className="text-right">
-                  Name
-                </Label>
-                <Input
-                  id="edit-name"
-                  value={selectedAppliance.name}
-                  onChange={(e) => setSelectedAppliance({ ...selectedAppliance, name: e.target.value })}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-type" className="text-right">
-                  Type
-                </Label>
-                <Select
-                  value={selectedAppliance.type}
-                  onValueChange={(value) => setSelectedAppliance({ ...selectedAppliance, type: value })}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Lighting</SelectItem>
-                    <SelectItem value="hvac">HVAC</SelectItem>
-                    <SelectItem value="kitchen">Kitchen</SelectItem>
-                    <SelectItem value="entertainment">Entertainment</SelectItem>
-                    <SelectItem value="smart_device">Smart Device</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-power" className="text-right">
-                  Power (watts)
-                </Label>
-                <Input
-                  id="edit-power"
-                  type="number"
-                  value={selectedAppliance.power_consumption}
-                  onChange={(e) =>
-                    setSelectedAppliance({ ...selectedAppliance, power_consumption: Number(e.target.value) })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-location" className="text-right">
-                  Location
-                </Label>
-                <Select
-                  value={selectedAppliance.location}
-                  onValueChange={(value) => setSelectedAppliance({ ...selectedAppliance, location: value })}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="living_room">Living Room</SelectItem>
-                    <SelectItem value="kitchen">Kitchen</SelectItem>
-                    <SelectItem value="bedroom">Bedroom</SelectItem>
-                    <SelectItem value="bathroom">Bathroom</SelectItem>
-                    <SelectItem value="office">Office</SelectItem>
-                    <SelectItem value="outdoor">Outdoor</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-usage" className="text-right">
-                  Daily Usage (hours)
-                </Label>
-                <div className="col-span-3 flex items-center gap-2">
-                  <Slider
-                    value={[selectedAppliance.daily_usage_hours]}
-                    min={0}
-                    max={24}
-                    step={0.5}
-                    onValueChange={(value) =>
-                      setSelectedAppliance({ ...selectedAppliance, daily_usage_hours: value[0] })
-                    }
-                    className="flex-1"
-                  />
-                  <span className="w-12 text-center">{selectedAppliance.daily_usage_hours}h</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-smart" className="text-right">
-                  Smart Device
-                </Label>
-                <div className="flex items-center col-span-3">
-                  <Switch
-                    id="edit-smart"
-                    checked={selectedAppliance.is_smart}
-                    onCheckedChange={(checked) => setSelectedAppliance({ ...selectedAppliance, is_smart: checked })}
-                  />
-                  <Label htmlFor="edit-smart" className="ml-2">
-                    {selectedAppliance.is_smart ? "Yes" : "No"}
-                  </Label>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleUpdateAppliance}>Update Appliance</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Schedule Dialog */}
-      <Dialog open={isScheduleDialogOpen} onOpenChange={setIsScheduleDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Schedule Appliance</DialogTitle>
-            <DialogDescription>Set up an automatic schedule for your appliance.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="schedule-type" className="text-right">
-                Schedule Type
-              </Label>
-              <Select
-                value={scheduleSettings.schedule_type}
-                onValueChange={(value) => setScheduleSettings({ ...scheduleSettings, schedule_type: value })}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select schedule type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="start-time" className="text-right">
-                Start
-              </Label>
-              <Input
-                id="start-time"
-                type="time"
-                value={scheduleSettings.start_time}
-                onChange={(e) => setScheduleSettings({ ...scheduleSettings, start_time: e.target.value })}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="end-time" className="text-right">
-                End Time
-              </Label>
-              <Input
-                id="end-time"
-                type="time"
-                value={scheduleSettings.end_time}
-                onChange={(e) => setScheduleSettings({ ...scheduleSettings, end_time: e.target.value })}
-                className="col-span-3"
-              />
-            </div>
-            {scheduleSettings.schedule_type === "weekly" && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Days</Label>
-                <div className="col-span-3 flex flex-wrap gap-2">
-                  {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => (
-                    <Button
-                      key={day}
-                      type="button"
-                      variant={scheduleSettings.days.includes(day) ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        const newDays = scheduleSettings.days.includes(day)
-                          ? scheduleSettings.days.filter((d) => d !== day)
-                          : [...scheduleSettings.days, day]
-                        setScheduleSettings({ ...scheduleSettings, days: newDays })
-                      }}
-                      className="capitalize"
-                    >
-                      {day.slice(0, 3)}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="schedule-active" className="text-right">
-                Active
-              </Label>
-              <div className="flex items-center col-span-3">
-                <Switch
-                  id="schedule-active"
-                  checked={scheduleSettings.is_active}
-                  onCheckedChange={(checked) => setScheduleSettings({ ...scheduleSettings, is_active: checked })}
-                />
-                <Label htmlFor="schedule-active" className="ml-2">
-                  {scheduleSettings.is_active ? "Yes" : "No"}
-                </Label>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsScheduleDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveSchedule}>Save Schedule</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </>
+      )}
     </div>
   )
 }

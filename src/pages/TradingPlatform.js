@@ -1,242 +1,189 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "../contexts/AuthContext"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
-import { Button } from "../components/ui/button"
-import { Input } from "../components/ui/Input"
-import { Switch } from "../components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs"
+import { useNavigate } from "react-router-dom"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../components/ui/dialog"
-import { Label } from "../components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
-import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from "recharts"
-import {
-  FaExclamationTriangle,
-  FaShoppingCart,
-  FaMoneyBillWave,
   FaExchangeAlt,
+  FaShoppingCart,
+  FaPlus,
+  FaExclamationTriangle,
+  FaCheckCircle,
+  FaArrowUp,
+  FaArrowDown,
+  FaSpinner,
+  FaTrash,
   FaChartLine,
-  FaUsers,
-  FaHistory,
-  FaSync,
-  FaChartBar,
+  FaMoneyBillWave,
+  FaUserFriends,
+  FaHome,
 } from "react-icons/fa"
 import TradingService from "../services/trading"
 import EnergyService from "../services/energy"
-import CommunityService from "../services/community"
-import { useNavigate } from "react-router-dom"
+import { useAuth } from "../contexts/AuthContext"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
+import { Button } from "../components/ui/button"
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts"
 
 const Trading = () => {
+  const [trades, setTrades] = useState([])
+  const [userTrades, setUserTrades] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [activeTab, setActiveTab] = useState("market")
-  const [marketData, setMarketData] = useState(null)
-  const [communityTrades, setCommunityTrades] = useState([])
-  const [tradingHistory, setTradingHistory] = useState([])
-  const [priceData, setPriceData] = useState([])
+  const [success, setSuccess] = useState(null)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [energyPrices, setEnergyPrices] = useState({
+    grid: 0.22,
+    p2p: 0.18,
+  })
   const [availableEnergy, setAvailableEnergy] = useState(0)
-  const [currentPrice, setCurrentPrice] = useState(0.2)
-  const [priceChange, setPriceChange] = useState("+$0.02")
-  const [buyAmount, setBuyAmount] = useState(1.5)
-  const [sellAmount, setSellAmount] = useState(0)
-  const [communities, setCommunities] = useState([])
-  const [selectedCommunity, setSelectedCommunity] = useState(null)
-  const [autoSellEnabled, setAutoSellEnabled] = useState(false)
-  const [autoBuyEnabled, setAutoBuyEnabled] = useState(false)
-  const [pricingStrategy, setPricingStrategy] = useState("fixed")
-  const [minimumSellPrice, setMinimumSellPrice] = useState("0.18")
-  const [isPreferencesDialogOpen, setIsPreferencesDialogOpen] = useState(false)
+  const [tradeHistory, setTradeHistory] = useState([])
+  const [activeTab, setActiveTab] = useState("marketplace")
+
+  const [newTrade, setNewTrade] = useState({
+    amount: 1.0,
+    price_per_kwh: 0.18,
+  })
+
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  // Fetch all necessary data
-  const fetchTradingData = async () => {
+  // Fetch trades and energy data
+  const fetchData = async () => {
     try {
       setLoading(true)
 
-      // Fetch market data
-      const marketResponse = await TradingService.getMarketData()
-      if (marketResponse.success) {
-        setMarketData(marketResponse.data)
+      // Fetch all trades
+      const tradesResponse = await TradingService.getAvailableTrades()
+      if (tradesResponse.success) {
+        setTrades(tradesResponse.data.trades || [])
+      } else {
+        console.error("Failed to fetch trades:", tradesResponse.error)
       }
 
-      // Fetch energy overview to get available energy
+      // Fetch user's trades
+      const userTradesResponse = await TradingService.getMyTrades()
+      if (userTradesResponse.success) {
+        setUserTrades(userTradesResponse.data.trades || [])
+      } else {
+        console.error("Failed to fetch user trades:", userTradesResponse.error)
+      }
+
+      // Fetch energy prices
+      const pricesResponse = await TradingService.getEnergyPrices()
+      if (pricesResponse.success) {
+        setEnergyPrices(
+          pricesResponse.data.prices || {
+            grid: 0.22,
+            p2p: 0.18,
+          },
+        )
+
+        // Set default price for new trade
+        setNewTrade((prev) => ({
+          ...prev,
+          price_per_kwh: pricesResponse.data.prices?.p2p || 0.18,
+        }))
+      } else {
+        console.error("Failed to fetch energy prices:", pricesResponse.error)
+      }
+
+      // Fetch available energy
       const energyResponse = await EnergyService.getEnergyOverview()
       if (energyResponse.success) {
-        // Calculate available energy
-        if (energyResponse.data.energy_balance) {
-          const availableEnergyValue = Math.max(0, energyResponse.data.energy_balance).toFixed(1)
-          setAvailableEnergy(availableEnergyValue)
-          setSellAmount(availableEnergyValue)
-        }
-
-        // Set current price
-        if (energyResponse.data.energy_prices?.p2p) {
-          setCurrentPrice(energyResponse.data.energy_prices.p2p)
-          // Calculate price change
-          const previousPrice = 0.18 // Base reference price
-          const change = energyResponse.data.energy_prices.p2p - previousPrice
-          setPriceChange((change >= 0 ? "+" : "") + "$" + Math.abs(change).toFixed(2))
-        }
+        // Calculate available energy (generation - consumption)
+        const generation = energyResponse.data.today_generation || 0
+        const consumption = energyResponse.data.today_consumption || 0
+        const balance = generation - consumption
+        setAvailableEnergy(Math.max(0, balance))
+      } else {
+        console.error("Failed to fetch energy overview:", energyResponse.error)
       }
 
-      // Fetch price forecast
-      const priceResponse = await TradingService.getPriceForecast()
-      if (priceResponse.success) {
-        setPriceData(priceResponse.data.forecast || [])
-      }
-
-      // Fetch trading history
-      const historyResponse = await TradingService.getTradingHistory()
+      // Fetch trade history
+      const historyResponse = await TradingService.getTradeHistory()
       if (historyResponse.success) {
-        setTradingHistory(historyResponse.data.trades || [])
-      }
-
-      // Fetch communities
-      const communitiesResponse = await CommunityService.listCommunities()
-      if (communitiesResponse.success) {
-        setCommunities(communitiesResponse.communities || [])
-
-        // Set default community if available
-        if (communitiesResponse.communities && communitiesResponse.communities.length > 0) {
-          setSelectedCommunity(communitiesResponse.communities[0])
-
-          // Fetch community trades
-          const communityTradesResponse = await TradingService.getMarketData(communitiesResponse.communities[0].id)
-          if (communityTradesResponse.success) {
-            setCommunityTrades(communityTradesResponse.data.active_trades || [])
-          }
-        }
+        setTradeHistory(historyResponse.data.history || [])
+      } else {
+        console.error("Failed to fetch trade history:", historyResponse.error)
       }
 
       setError(null)
     } catch (err) {
-      console.error("Error fetching trading data:", err)
-      setError(err.response?.data?.msg || "Failed to fetch trading data")
+      console.error("Error fetching data:", err)
+      setError("Failed to fetch trading data. Please try again.")
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchTradingData()
+    fetchData()
+
+    // Refresh data every 30 seconds
+    const interval = setInterval(() => {
+      fetchData()
+    }, 30000)
+
+    return () => clearInterval(interval)
   }, [])
 
-  // Update the CommunityTrading component to ensure communityTrades is an array
-  useEffect(() => {
-    fetchCommunityData()
-  }, [])
+  const handleCreateTrade = async (e) => {
+    e.preventDefault()
 
-  const fetchCommunityData = async () => {
     try {
       setLoading(true)
-      // Get list of communities (should only be one default community)
-      const communitiesResponse = await CommunityService.listCommunities()
-      const communities = communitiesResponse.communities || []
 
-      if (communities.length > 0) {
-        // Get the default community (first one)
-        const defaultCommunity = communities[0]
-        setSelectedCommunity(defaultCommunity)
-
-        // Fetch community trades
-        await fetchCommunityTrades(defaultCommunity.id)
-      } else {
-        setError("No community found. Please contact support.")
-      }
-    } catch (err) {
-      console.error("Error fetching community data:", err)
-      setError(err.response?.data?.msg || "Failed to fetch community data")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchCommunityTrades = async (communityId) => {
-    try {
-      const response = await TradingService.getMarketData(communityId)
-      // Ensure trades is an array
-      setCommunityTrades(Array.isArray(response.data.active_trades) ? response.data.active_trades : [])
-      setError(null)
-    } catch (err) {
-      console.error("Error fetching community trades:", err)
-      setError(err.response?.data?.msg || "Failed to fetch community trades")
-      // Initialize with empty array on error
-      setCommunityTrades([])
-    }
-  }
-
-  // Handle buy energy
-  const handleBuyEnergy = async () => {
-    try {
-      setLoading(true)
-      const response = await TradingService.buyEnergy({
-        amount: Number.parseFloat(buyAmount),
-        max_price: currentPrice,
-      })
-
-      if (response.success) {
-        // Refresh data
-        fetchTradingData()
-      } else {
-        setError(response.error || "Failed to buy energy. Please try again.")
-      }
-    } catch (err) {
-      console.error("Error buying energy:", err)
-      setError("Failed to buy energy. Please try again.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Handle sell energy
-  const handleSellEnergy = async () => {
-    try {
-      if (Number.parseFloat(sellAmount) <= 0) {
-        setError("No energy available to sell")
+      if (newTrade.amount <= 0) {
+        setError("Please enter a valid energy amount")
+        setLoading(false)
         return
       }
 
-      setLoading(true)
+      if (newTrade.amount > availableEnergy) {
+        setError("You don't have enough energy to sell")
+        setLoading(false)
+        return
+      }
+
       const response = await TradingService.createSellOrder({
-        amount: Number.parseFloat(sellAmount),
-        price_per_kwh: currentPrice,
-        community_id: selectedCommunity?.id,
+        amount: newTrade.amount,
+        price_per_kwh: newTrade.price_per_kwh,
       })
 
       if (response.success) {
-        // Refresh data
-        fetchTradingData()
+        setSuccess("Trade offer created successfully")
+        setShowCreateForm(false)
+        setNewTrade({
+          amount: 1.0,
+          price_per_kwh: energyPrices.p2p,
+        })
+
+        // Refresh trades
+        fetchData()
       } else {
-        setError(response.error || "Failed to sell energy. Please try again.")
+        setError(response.error || "Failed to create trade")
       }
     } catch (err) {
-      console.error("Error selling energy:", err)
-      setError("Failed to sell energy. Please try again.")
+      console.error("Error creating trade:", err)
+      setError("Failed to create trade. Please try again.")
     } finally {
       setLoading(false)
     }
   }
 
-  // Handle buy specific trade
-  const handleBuyTrade = async (tradeId) => {
+  const handleBuyTrade = async (tradeId, amount, price) => {
     try {
       setLoading(true)
+
       const response = await TradingService.buyTrade(tradeId)
 
       if (response.success) {
-        // Refresh data
-        fetchTradingData()
+        setSuccess(`Successfully purchased ${amount} kWh for $${(amount * price).toFixed(2)}`)
+
+        // Refresh trades
+        fetchData()
       } else {
-        setError(response.error || "Failed to buy trade. Please try again.")
+        setError(response.error || "Failed to buy trade")
       }
     } catch (err) {
       console.error("Error buying trade:", err)
@@ -246,17 +193,19 @@ const Trading = () => {
     }
   }
 
-  // Handle cancel trade
   const handleCancelTrade = async (tradeId) => {
     try {
       setLoading(true)
+
       const response = await TradingService.cancelTrade(tradeId)
 
       if (response.success) {
-        // Refresh data
-        fetchTradingData()
+        setSuccess("Trade cancelled successfully")
+
+        // Refresh trades
+        fetchData()
       } else {
-        setError(response.error || "Failed to cancel trade. Please try again.")
+        setError(response.error || "Failed to cancel trade")
       }
     } catch (err) {
       console.error("Error cancelling trade:", err)
@@ -266,33 +215,36 @@ const Trading = () => {
     }
   }
 
-  // Handle save preferences
-  const handleSavePreferences = async () => {
-    try {
-      setLoading(true)
-      const response = await TradingService.updateTradingPreferences({
-        autoSellEnabled,
-        autoBuyEnabled,
-        pricingStrategy,
-        minimumSellPrice: Number.parseFloat(minimumSellPrice),
-      })
+  // Prepare price history data for chart
+  const preparePriceHistoryData = () => {
+    // Generate some sample data if no history
+    if (!tradeHistory || tradeHistory.length === 0) {
+      const data = []
+      const now = new Date()
 
-      if (response.success) {
-        setIsPreferencesDialogOpen(false)
-        // Refresh data
-        fetchTradingData()
-      } else {
-        setError(response.error || "Failed to save preferences. Please try again.")
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(now)
+        date.setDate(date.getDate() - i)
+
+        data.push({
+          date: date.toLocaleDateString(),
+          p2p: 0.15 + Math.random() * 0.1,
+          grid: 0.2 + Math.random() * 0.05,
+        })
       }
-    } catch (err) {
-      console.error("Error saving preferences:", err)
-      setError("Failed to save preferences. Please try again.")
-    } finally {
-      setLoading(false)
+
+      return data
     }
+
+    // Process actual history data
+    return tradeHistory.map((item) => ({
+      date: new Date(item.date).toLocaleDateString(),
+      p2p: item.avg_p2p_price,
+      grid: item.grid_price,
+    }))
   }
 
-  if (loading && !marketData) {
+  if (loading && trades.length === 0 && userTrades.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-teal-600"></div>
@@ -304,18 +256,27 @@ const Trading = () => {
     <div className="container mx-auto p-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-teal-600">Trading Platform</h1>
-          <p className="text-gray-600">Buy and sell energy on the P2P market</p>
+          <h1 className="text-3xl font-bold text-teal-600">Energy Trading</h1>
+          <p className="text-gray-600">Buy and sell energy within your community</p>
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
-          <Button onClick={() => setIsPreferencesDialogOpen(true)} variant="outline">
-            <FaChartBar className="mr-2" />
-            Trading Preferences
+          <Button onClick={() => navigate("/dashboard")} className="bg-gray-200 hover:bg-gray-300 text-gray-800">
+            <FaHome className="mr-2" /> Back to Dashboard
           </Button>
-          <Button onClick={() => fetchTradingData()} className="bg-teal-600 hover:bg-teal-700">
-            <FaSync className={loading ? "mr-2 animate-spin" : "mr-2"} />
-            Refresh
+
+          <Button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="bg-teal-600 hover:bg-teal-700"
+            disabled={availableEnergy <= 0}
+          >
+            {showCreateForm ? (
+              "Cancel"
+            ) : (
+              <>
+                <FaPlus className="mr-2" /> Sell Energy
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -331,710 +292,481 @@ const Trading = () => {
         </Card>
       )}
 
-      {/* Tabs for different trading views */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-        <TabsList className="mb-4">
-          <TabsTrigger value="market">Market</TabsTrigger>
-          <TabsTrigger value="community">Community Trading</TabsTrigger>
-          <TabsTrigger value="history">Trading History</TabsTrigger>
-          <TabsTrigger value="forecast">Price Forecast</TabsTrigger>
-        </TabsList>
+      {success && (
+        <Card className="bg-green-50 mb-6">
+          <CardContent className="pt-6">
+            <div className="flex items-center text-green-600">
+              <FaCheckCircle className="mr-2" />
+              <p>{success}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Market Tab */}
-        <TabsContent value="market">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Marketplace Card - Takes 3/4 of the space on large screens */}
-            <Card className="lg:col-span-3">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <FaShoppingCart className="mr-2 text-teal-600" />
-                  Energy Marketplace
-                </CardTitle>
-                <CardDescription>Buy and sell energy on the P2P market</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-gradient-to-br from-teal-50 to-green-50 p-4 rounded-lg border border-teal-100">
-                    <h3 className="font-medium text-teal-700 mb-2">Sell Energy</h3>
-                    <div className="flex items-center mb-3">
-                      <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mr-3">
-                        <FaExchangeAlt className="text-teal-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Available to Sell</p>
-                        <p className="text-2xl font-bold text-teal-700">{availableEnergy} kWh</p>
-                      </div>
+      {/* Energy Status */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <Card className="bg-gradient-to-br from-teal-50 to-emerald-50 border-teal-100">
+          <CardContent className="pt-6">
+            <div className="flex items-start">
+              <div className="mr-2 p-2 bg-teal-100 rounded-full">
+                <FaExchangeAlt className="text-teal-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Available Energy</p>
+                <p className="text-2xl font-bold text-teal-700">{availableEnergy.toFixed(1)} kWh</p>
+                <p className="text-xs text-gray-600">
+                  Market value: ${(availableEnergy * energyPrices.p2p).toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-100">
+          <CardContent className="pt-6">
+            <div className="flex items-start">
+              <div className="mr-2 p-2 bg-blue-100 rounded-full">
+                <FaMoneyBillWave className="text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Current P2P Price</p>
+                <p className="text-2xl font-bold text-blue-700">${energyPrices.p2p.toFixed(2)}/kWh</p>
+                <p className="text-xs text-gray-600">Grid price: ${energyPrices.grid.toFixed(2)}/kWh</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-100">
+          <CardContent className="pt-6">
+            <div className="flex items-start">
+              <div className="mr-2 p-2 bg-purple-100 rounded-full">
+                <FaUserFriends className="text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Active Trades</p>
+                <p className="text-2xl font-bold text-purple-700">{trades.length}</p>
+                <p className="text-xs text-gray-600">Your trades: {userTrades.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Sell Energy Form */}
+      {showCreateForm && (
+        <Card className="mb-6 bg-teal-50 border-teal-100">
+          <CardHeader>
+            <CardTitle>Sell Your Energy</CardTitle>
+            <CardDescription>Create a new trade offer to sell your excess energy</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleCreateTrade} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount to Sell (kWh)</label>
+                <input
+                  type="number"
+                  value={newTrade.amount}
+                  onChange={(e) => setNewTrade({ ...newTrade, amount: Number(e.target.value) })}
+                  min="0.1"
+                  max={availableEnergy}
+                  step="0.1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                  required
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  You have {availableEnergy.toFixed(1)} kWh available to sell
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Price per kWh ($)</label>
+                <input
+                  type="number"
+                  value={newTrade.price_per_kwh}
+                  onChange={(e) => setNewTrade({ ...newTrade, price_per_kwh: Number(e.target.value) })}
+                  min="0.01"
+                  step="0.01"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                  required
+                />
+                <p className="mt-1 text-sm text-gray-500">Current market price: ${energyPrices.p2p.toFixed(2)}/kWh</p>
+              </div>
+
+              <div className="md:col-span-2">
+                <div className="bg-white p-4 rounded-md shadow-sm">
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Trade Summary</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Amount to Sell</p>
+                      <p className="text-lg font-medium">{newTrade.amount.toFixed(1)} kWh</p>
                     </div>
-                    <div className="flex items-center space-x-2 mb-3">
-                      <Input
-                        type="number"
-                        value={sellAmount}
-                        onChange={(e) => setSellAmount(e.target.value)}
-                        min="0.1"
-                        step="0.1"
-                        max={availableEnergy}
-                        className="w-24 border-teal-200 focus:ring-teal-500"
-                      />
-                      <span>kWh</span>
-                      <span className="text-sm text-gray-500">at ${currentPrice.toFixed(2)}/kWh</span>
+                    <div>
+                      <p className="text-sm text-gray-500">Price per kWh</p>
+                      <p className="text-lg font-medium">${newTrade.price_per_kwh.toFixed(2)}</p>
                     </div>
-                    <Button
-                      onClick={handleSellEnergy}
-                      className="w-full bg-teal-600 hover:bg-teal-700"
-                      disabled={Number(sellAmount) <= 0}
-                    >
-                      Sell Energy
-                    </Button>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
-                    <h3 className="font-medium text-blue-700 mb-2">Buy Energy</h3>
-                    <div className="flex items-center mb-3">
-                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                        <FaMoneyBillWave className="text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Current Price</p>
-                        <p className="text-2xl font-bold text-blue-700">${currentPrice.toFixed(2)}/kWh</p>
-                      </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Total Value</p>
+                      <p className="text-lg font-medium">${(newTrade.amount * newTrade.price_per_kwh).toFixed(2)}</p>
                     </div>
-                    <div className="flex items-center space-x-2 mb-3">
-                      <Input
-                        type="number"
-                        value={buyAmount}
-                        onChange={(e) => setBuyAmount(e.target.value)}
-                        min="0.1"
-                        step="0.1"
-                        className="w-24 border-blue-200 focus:ring-blue-500"
-                      />
-                      <span>kWh</span>
-                      <span className="text-sm text-gray-500">Total: ${(buyAmount * currentPrice).toFixed(2)}</span>
-                    </div>
-                    <Button
-                      onClick={handleBuyEnergy}
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                      disabled={Number(buyAmount) <= 0}
-                    >
-                      Buy Energy
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium">Active Market Listings</h3>
-                  </div>
-                  <div className="overflow-x-auto bg-white rounded-lg border">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Seller
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Amount
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Price
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Total
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Listed
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Action
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {marketData && marketData.active_trades && marketData.active_trades.length > 0 ? (
-                          marketData.active_trades.map((trade) => (
-                            <tr key={trade.id}>
-                              <td className="px-3 py-4 whitespace-nowrap">
-                                {trade.seller_id === user.id ? "You" : `User #${trade.seller_id}`}
-                              </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm">{trade.amount.toFixed(2)} kWh</td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm">
-                                ${trade.price_per_kwh.toFixed(2)}/kWh
-                              </td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm">${trade.total_price.toFixed(2)}</td>
-                              <td className="px-3 py-4 whitespace-nowrap text-sm">
-                                {new Date(trade.created_at).toLocaleString()}
-                              </td>
-                              <td className="px-3 py-4 whitespace-nowrap">
-                                {trade.seller_id === user.id ? (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleCancelTrade(trade.id)}
-                                    className="text-red-600 hover:text-red-800"
-                                  >
-                                    Cancel
-                                  </Button>
-                                ) : (
-                                  <Button size="sm" onClick={() => handleBuyTrade(trade.id)}>
-                                    Buy
-                                  </Button>
-                                )}
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan="6" className="px-3 py-4 text-center text-gray-500">
-                              No active trades in the market
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Market Overview - Takes 1/4 of the space on large screens */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <FaChartLine className="mr-2 text-teal-600" />
-                  Market Overview
-                </CardTitle>
-                <CardDescription>Current market statistics</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-sm text-gray-600">Current P2P Price</p>
-                    <p className="text-xl font-bold text-teal-700">${currentPrice.toFixed(2)}/kWh</p>
-                    <p className="text-xs text-gray-500">{priceChange} from base rate</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-sm text-gray-600">Market Volume</p>
-                    <p className="text-xl font-bold text-teal-700">
-                      {marketData?.market_volume?.toFixed(2) || "0.00"} kWh
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {marketData?.volume_change
-                        ? `${marketData.volume_change > 0 ? "+" : ""}${marketData.volume_change.toFixed(2)}% today`
-                        : "No change today"}
-                    </p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-sm text-gray-600">Active Trades</p>
-                    <p className="text-xl font-bold text-teal-700">{marketData?.active_trades?.length || 0}</p>
-                    <p className="text-xs text-gray-500">{marketData?.completed_trades_today || 0} completed today</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-sm text-gray-600">Your Balance</p>
-                    <p className="text-xl font-bold text-teal-700">${user?.account_balance?.toFixed(2) || "0.00"}</p>
-                    <p className="text-xs text-gray-500">
-                      {marketData?.your_trades_today
-                        ? `${marketData.your_trades_today} trades today`
-                        : "No trades today"}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Community Trading Tab */}
-        <TabsContent value="community">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Community Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <FaUsers className="mr-2 text-teal-600" />
-                  Your Communities
-                </CardTitle>
-                <CardDescription>Select a community to trade with</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {communities.length > 0 ? (
-                  <div className="space-y-4">
-                    {communities.map((community) => (
-                      <div
-                        key={community.id}
-                        className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                          selectedCommunity?.id === community.id
-                            ? "bg-teal-50 border-teal-200"
-                            : "bg-white border-gray-200 hover:bg-gray-50"
-                        }`}
-                        onClick={() => setSelectedCommunity(community)}
+                    <div>
+                      <p className="text-sm text-gray-500">Compared to Grid</p>
+                      <p
+                        className={`text-lg font-medium ${newTrade.price_per_kwh < energyPrices.grid ? "text-green-600" : "text-red-600"}`}
                       >
-                        <h3 className="font-medium">{community.name}</h3>
-                        <p className="text-sm text-gray-500">
-                          {community.description || "A community for energy sharing"}
-                        </p>
-                        <div className="flex justify-between mt-2 text-xs text-gray-500">
-                          <span>{community.member_count || 0} members</span>
-                          <span>
-                            {community.is_member ? (
-                              <span className="text-green-600">Member</span>
-                            ) : (
-                              <span className="text-gray-500">Not a member</span>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-40">
-                    <p className="text-gray-500 mb-4">You're not a member of any communities yet</p>
-                    <Button onClick={() => navigate("/community")}>Join a Community</Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Community Trading */}
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <FaExchangeAlt className="mr-2 text-teal-600" />
-                  Community Energy Trading
-                </CardTitle>
-                <CardDescription>
-                  {selectedCommunity
-                    ? `Trade energy within the ${selectedCommunity.name} community`
-                    : "Select a community to view trading options"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {selectedCommunity ? (
-                  <>
-                    <div className="bg-teal-50 p-4 rounded-lg mb-4">
-                      <h3 className="font-medium text-teal-700">Trading in: {selectedCommunity.name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {selectedCommunity.member_count || 0} members in this community
-                      </p>
-                      <p className="text-xs text-gray-500 mt-2">
-                        Community trading offers lower fees and supports your local energy economy
+                        {newTrade.price_per_kwh < energyPrices.grid ? "Below" : "Above"} grid price
                       </p>
                     </div>
-
-                    <div className="overflow-x-auto bg-white rounded-lg border">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th
-                              scope="col"
-                              className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                              Seller
-                            </th>
-                            <th
-                              scope="col"
-                              className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                              Amount
-                            </th>
-                            <th
-                              scope="col"
-                              className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                              Price
-                            </th>
-                            <th
-                              scope="col"
-                              className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                              Total
-                            </th>
-                            <th
-                              scope="col"
-                              className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                              Listed
-                            </th>
-                            <th
-                              scope="col"
-                              className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            >
-                              Action
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {communityTrades.length > 0 ? (
-                            communityTrades.map((trade) => (
-                              <tr key={trade.id}>
-                                <td className="px-3 py-4 whitespace-nowrap">
-                                  {trade.seller_id === user.id ? "You" : `User #${trade.seller_id}`}
-                                </td>
-                                <td className="px-3 py-4 whitespace-nowrap text-sm">{trade.amount.toFixed(2)} kWh</td>
-                                <td className="px-3 py-4 whitespace-nowrap text-sm">
-                                  ${trade.price_per_kwh.toFixed(2)}/kWh
-                                </td>
-                                <td className="px-3 py-4 whitespace-nowrap text-sm">${trade.total_price.toFixed(2)}</td>
-                                <td className="px-3 py-4 whitespace-nowrap text-sm">
-                                  {new Date(trade.created_at).toLocaleString()}
-                                </td>
-                                <td className="px-3 py-4 whitespace-nowrap">
-                                  {trade.seller_id === user.id ? (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleCancelTrade(trade.id)}
-                                      className="text-red-600 hover:text-red-800"
-                                    >
-                                      Cancel
-                                    </Button>
-                                  ) : (
-                                    <Button size="sm" onClick={() => handleBuyTrade(trade.id)}>
-                                      Buy
-                                    </Button>
-                                  )}
-                                </td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan="6" className="px-3 py-4 text-center text-gray-500">
-                                <p>No active trades in this community</p>
-                                <p className="text-sm mt-2">Be the first to list your excess energy for sale!</p>
-                                <Button
-                                  onClick={() => {
-                                    setActiveTab("market")
-                                    // Set community ID for selling
-                                  }}
-                                  className="mt-4"
-                                >
-                                  List Energy for Sale
-                                </Button>
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-64">
-                    <FaUsers className="text-gray-300 text-5xl mb-4" />
-                    <p className="text-gray-500 mb-2">Select a community to view trading options</p>
-                    <p className="text-sm text-gray-400 text-center max-w-md">
-                      Community trading allows you to buy and sell energy with other members of your community at
-                      preferential rates
-                    </p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+                </div>
+              </div>
 
-        {/* Trading History Tab */}
-        <TabsContent value="history">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <FaHistory className="mr-2 text-teal-600" />
-                Trading History
-              </CardTitle>
-              <CardDescription>Your past energy trades</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto bg-white rounded-lg border">
+              <div className="md:col-span-2">
+                <Button
+                  type="submit"
+                  className="bg-teal-600 hover:bg-teal-700"
+                  disabled={loading || newTrade.amount <= 0 || newTrade.amount > availableEnergy}
+                >
+                  {loading ? <FaSpinner className="animate-spin mr-2" /> : <FaExchangeAlt className="mr-2" />}
+                  Create Trade Offer
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tabs */}
+      <div className="flex border-b mb-6">
+        <button
+          className={`py-2 px-4 font-medium ${
+            activeTab === "marketplace"
+              ? "text-teal-600 border-b-2 border-teal-600"
+              : "text-gray-500 hover:text-teal-600"
+          }`}
+          onClick={() => setActiveTab("marketplace")}
+        >
+          <FaShoppingCart className="inline mr-2" />
+          Marketplace
+        </button>
+        <button
+          className={`py-2 px-4 font-medium ${
+            activeTab === "myTrades" ? "text-teal-600 border-b-2 border-teal-600" : "text-gray-500 hover:text-teal-600"
+          }`}
+          onClick={() => setActiveTab("myTrades")}
+        >
+          <FaExchangeAlt className="inline mr-2" />
+          My Trades
+        </button>
+        <button
+          className={`py-2 px-4 font-medium ${
+            activeTab === "priceHistory"
+              ? "text-teal-600 border-b-2 border-teal-600"
+              : "text-gray-500 hover:text-teal-600"
+          }`}
+          onClick={() => setActiveTab("priceHistory")}
+        >
+          <FaChartLine className="inline mr-2" />
+          Price History
+        </button>
+      </div>
+
+      {activeTab === "marketplace" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Available Energy Trades</CardTitle>
+            <CardDescription>Browse and purchase energy from other users</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {trades.length === 0 ? (
+              <div className="text-center py-8">
+                <FaExchangeAlt className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-lg font-medium text-gray-900">No trades available</h3>
+                <p className="mt-1 text-sm text-gray-500">Be the first to offer energy for sale!</p>
+                <div className="mt-6">
+                  <Button
+                    onClick={() => setShowCreateForm(true)}
+                    className="bg-teal-600 hover:bg-teal-700"
+                    disabled={availableEnergy <= 0}
+                  >
+                    <FaPlus className="mr-2" /> Sell Energy
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
                       <th
                         scope="col"
-                        className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
-                        Date
+                        Seller
                       </th>
                       <th
                         scope="col"
-                        className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        Type
-                      </th>
-                      <th
-                        scope="col"
-                        className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
                         Amount
                       </th>
                       <th
                         scope="col"
-                        className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
                         Price
                       </th>
                       <th
                         scope="col"
-                        className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
-                        Total
+                        Total Value
                       </th>
                       <th
                         scope="col"
-                        className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
-                        Counterparty
-                      </th>
-                      <th
-                        scope="col"
-                        className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        Status
+                        Actions
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {tradingHistory.length > 0 ? (
-                      tradingHistory.map((trade) => (
-                        <tr key={trade.id}>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm">
-                            {new Date(trade.completed_at || trade.created_at).toLocaleString()}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap">
-                            <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                trade.seller_id === user.id
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-blue-100 text-blue-800"
-                              }`}
-                            >
-                              {trade.seller_id === user.id ? "Sell" : "Buy"}
-                            </span>
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm">{trade.amount.toFixed(2)} kWh</td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm">${trade.price_per_kwh.toFixed(2)}/kWh</td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm">${trade.total_price.toFixed(2)}</td>
-                          <td className="px-3 py-4 whitespace-nowrap text-sm">
-                            {trade.seller_id === user.id
-                              ? `User #${trade.buyer_id || "Unknown"}`
-                              : `User #${trade.seller_id}`}
-                          </td>
-                          <td className="px-3 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                trade.status === "completed"
-                                  ? "bg-green-100 text-green-800"
-                                  : trade.status === "pending"
-                                    ? "bg-yellow-100 text-yellow-800"
-                                    : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {trade.status.charAt(0).toUpperCase() + trade.status.slice(1)}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="7" className="px-3 py-4 text-center text-gray-500">
-                          <p>No trading history found</p>
-                          <p className="text-sm mt-2">Start trading energy to see your history here</p>
-                          <Button onClick={() => setActiveTab("market")} className="mt-4">
-                            Go to Marketplace
+                    {trades.map((trade) => (
+                      <tr key={trade.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center bg-teal-100 rounded-full">
+                              {trade.seller_name?.charAt(0) || "U"}
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">{trade.seller_name || "Unknown"}</div>
+                              <div className="text-xs text-gray-500">{new Date(trade.created_at).toLocaleString()}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{trade.amount.toFixed(1)} kWh</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">${trade.price_per_kwh.toFixed(2)}/kWh</div>
+                          <div className="text-xs text-gray-500">
+                            {trade.price_per_kwh < energyPrices.grid ? (
+                              <span className="text-green-600">Below grid price</span>
+                            ) : (
+                              <span className="text-red-600">Above grid price</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            ${(trade.amount * trade.price_per_kwh).toFixed(2)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Button
+                            onClick={() => handleBuyTrade(trade.id, trade.amount, trade.price_per_kwh)}
+                            className="bg-teal-600 hover:bg-teal-700"
+                            disabled={loading || trade.seller_id === user?.id}
+                          >
+                            {loading ? (
+                              <FaSpinner className="animate-spin mr-2" />
+                            ) : (
+                              <FaShoppingCart className="mr-2" />
+                            )}
+                            Buy
                           </Button>
                         </td>
                       </tr>
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Price Forecast Tab */}
-        <TabsContent value="forecast">
-          <div className="grid grid-cols-1 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <FaChartLine className="mr-2 text-teal-600" />
-                  Energy Price Forecast
-                </CardTitle>
-                <CardDescription>Predicted energy prices for the next 24 hours</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[400px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={priceData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="hour" tickFormatter={(hour) => `${hour}:00`} />
-                      <YAxis domain={["auto", "auto"]} tickFormatter={(price) => `$${price.toFixed(2)}`} />
-                      <Tooltip
-                        formatter={(value) => [`$${value.toFixed(2)}`, "Price"]}
-                        labelFormatter={(hour) => `Time: ${hour}:00`}
-                      />
-                      <Legend />
-                      <Line type="monotone" dataKey="price" name="Market Price" stroke="#4FD1C5" activeDot={{ r: 8 }} />
-                      <Line type="monotone" dataKey="p2p_price" name="P2P Price" stroke="#38B2AC" />
-                    </LineChart>
-                  </ResponsiveContainer>
+      {activeTab === "myTrades" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>My Trade Offers</CardTitle>
+            <CardDescription>Manage your active energy trade offers</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {userTrades.length === 0 ? (
+              <div className="text-center py-8">
+                <FaExchangeAlt className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-lg font-medium text-gray-900">No active trades</h3>
+                <p className="mt-1 text-sm text-gray-500">You don't have any active trade offers</p>
+                <div className="mt-6">
+                  <Button
+                    onClick={() => setShowCreateForm(true)}
+                    className="bg-teal-600 hover:bg-teal-700"
+                    disabled={availableEnergy <= 0}
+                  >
+                    <FaPlus className="mr-2" /> Create Trade Offer
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        Created
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        Amount
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        Price
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        Total Value
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        Status
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {userTrades.map((trade) => (
+                      <tr key={trade.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{new Date(trade.created_at).toLocaleDateString()}</div>
+                          <div className="text-xs text-gray-500">{new Date(trade.created_at).toLocaleTimeString()}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{trade.amount.toFixed(1)} kWh</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">${trade.price_per_kwh.toFixed(2)}/kWh</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            ${(trade.amount * trade.price_per_kwh).toFixed(2)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              trade.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : trade.status === "completed"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {trade.status.charAt(0).toUpperCase() + trade.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {trade.status === "pending" && (
+                            <Button
+                              onClick={() => handleCancelTrade(trade.id)}
+                              className="bg-red-600 hover:bg-red-700"
+                              disabled={loading}
+                            >
+                              {loading ? <FaSpinner className="animate-spin mr-2" /> : <FaTrash className="mr-2" />}
+                              Cancel
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center text-sm">
-                    <FaChartBar className="mr-2 text-teal-600" />
-                    Best Time to Sell
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-teal-700">{marketData?.best_sell_time || "N/A"}</p>
-                    <p className="text-sm text-gray-600">
-                      {marketData?.best_sell_price
-                        ? `$${marketData.best_sell_price.toFixed(2)}/kWh`
-                        : "Price data unavailable"}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-2">Based on price forecast and demand patterns</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center text-sm">
-                    <FaChartBar className="mr-2 text-teal-600" />
-                    Best Time to Buy
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-teal-700">{marketData?.best_buy_time || "N/A"}</p>
-                    <p className="text-sm text-gray-600">
-                      {marketData?.best_buy_price
-                        ? `$${marketData.best_buy_price.toFixed(2)}/kWh`
-                        : "Price data unavailable"}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-2">Based on price forecast and supply patterns</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center text-sm">
-                    <FaChartBar className="mr-2 text-teal-600" />
-                    Price Volatility
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-teal-700">
-                      {marketData?.price_volatility ? `${marketData.price_volatility.toFixed(2)}%` : "N/A"}
-                    </p>
-                    <p className="text-sm text-gray-600">{marketData?.volatility_trend || "Trend data unavailable"}</p>
-                    <p className="text-xs text-gray-500 mt-2">24-hour price fluctuation range</p>
-                  </div>
-                </CardContent>
-              </Card>
+      {activeTab === "priceHistory" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Energy Price History</CardTitle>
+            <CardDescription>Track energy price trends over time</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[400px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={preparePriceHistoryData()}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis domain={[0, "auto"]} />
+                  <Tooltip formatter={(value) => [`$${value.toFixed(2)}`, ""]} />
+                  <Legend />
+                  <Line type="monotone" dataKey="p2p" stroke="#4FD1C5" name="P2P Price" />
+                  <Line type="monotone" dataKey="grid" stroke="#FC8181" name="Grid Price" />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
-          </div>
-        </TabsContent>
-      </Tabs>
 
-      {/* Trading Preferences Dialog */}
-      <Dialog open={isPreferencesDialogOpen} onOpenChange={setIsPreferencesDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Trading Preferences</DialogTitle>
-            <DialogDescription>Configure your automated trading settings</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="auto-sell" className="text-right">
-                Auto-sell surplus
-              </Label>
-              <div className="flex items-center col-span-3">
-                <Switch id="auto-sell" checked={autoSellEnabled} onCheckedChange={setAutoSellEnabled} />
-                <Label htmlFor="auto-sell" className="ml-2">
-                  {autoSellEnabled ? "Enabled" : "Disabled"}
-                </Label>
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Price Comparison</h3>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm text-gray-500">Current P2P Price</p>
+                    <p className="text-xl font-medium text-teal-600">${energyPrices.p2p.toFixed(2)}/kWh</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Current Grid Price</p>
+                    <p className="text-xl font-medium text-red-600">${energyPrices.grid.toFixed(2)}/kWh</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Savings</p>
+                    <p className="text-xl font-medium text-green-600">
+                      {(((energyPrices.grid - energyPrices.p2p) / energyPrices.grid) * 100).toFixed(0)}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Trading Tips</h3>
+                <ul className="text-sm text-gray-600 space-y-2">
+                  <li className="flex items-start">
+                    <FaArrowUp className="text-red-500 mt-1 mr-2 flex-shrink-0" />
+                    <span>Sell when prices are high (peak demand hours)</span>
+                  </li>
+                  <li className="flex items-start">
+                    <FaArrowDown className="text-green-500 mt-1 mr-2 flex-shrink-0" />
+                    <span>Buy when prices are low (off-peak hours)</span>
+                  </li>
+                  <li className="flex items-start">
+                    <FaExchangeAlt className="text-blue-500 mt-1 mr-2 flex-shrink-0" />
+                    <span>Trading below grid price benefits both buyers and sellers</span>
+                  </li>
+                </ul>
               </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="auto-buy" className="text-right">
-                Auto-buy when deficit
-              </Label>
-              <div className="flex items-center col-span-3">
-                <Switch id="auto-buy" checked={autoBuyEnabled} onCheckedChange={setAutoBuyEnabled} />
-                <Label htmlFor="auto-buy" className="ml-2">
-                  {autoBuyEnabled ? "Enabled" : "Disabled"}
-                </Label>
-              </div>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="pricing-strategy" className="text-right">
-                Pricing Strategy
-              </Label>
-              <Select value={pricingStrategy} onValueChange={setPricingStrategy}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select pricing strategy" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fixed">Fixed Price</SelectItem>
-                  <SelectItem value="dynamic">Dynamic Price</SelectItem>
-                  <SelectItem value="market">Market Following</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="min-price" className="text-right">
-                Minimum Sell Price
-              </Label>
-              <div className="flex items-center col-span-3">
-                <span className="mr-2">$</span>
-                <Input
-                  id="min-price"
-                  type="number"
-                  value={minimumSellPrice}
-                  onChange={(e) => setMinimumSellPrice(e.target.value)}
-                  step="0.01"
-                  min="0"
-                  className="w-24"
-                />
-                <span className="ml-2">per kWh</span>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPreferencesDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSavePreferences}>Save Preferences</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

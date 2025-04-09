@@ -1,89 +1,52 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "../contexts/AuthContext"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs"
-import {
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-} from "recharts"
-import {
-  FaExclamationTriangle,
-  FaUsers,
-  FaSolarPanel,
-  FaBatteryFull,
-  FaExchangeAlt,
-  FaLightbulb,
-  FaChartLine,
-} from "react-icons/fa"
-import CommunityService from "../services/community"
+import { useToast } from "../hooks/use-toast"
+import { useAuth } from "../contexts/AuthContext"
+import api from "../config/axios"
+import { FaUsers, FaExclamationTriangle, FaSolarPanel, FaBatteryFull, FaExchangeAlt } from "react-icons/fa"
 
-const Community = () => {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+const CommunityPage = () => {
+  const { user } = useAuth()
+  const { toast } = useToast()
   const [community, setCommunity] = useState(null)
   const [communityMembers, setCommunityMembers] = useState([])
   const [communityStats, setCommunityStats] = useState(null)
-  const [communityForecasts, setCommunityForecasts] = useState([])
-  const [activeTab, setActiveTab] = useState("overview")
-  const { user } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetchCommunityData()
-  }, [])
+    if (user) {
+      fetchCommunityData()
+    }
+  }, [user])
 
   const fetchCommunityData = async () => {
     try {
       setLoading(true)
       // Get list of communities (should only be one default community)
-      const communitiesResponse = await CommunityService.listCommunities()
+      const communitiesResponse = await api.get("/community/list")
+      const communities = communitiesResponse.data.communities
 
-      if (
-        communitiesResponse.success &&
-        communitiesResponse.communities &&
-        communitiesResponse.communities.length > 0
-      ) {
+      if (communities.length > 0) {
         // Get the default community (first one)
-        const defaultCommunity = communitiesResponse.communities[0]
+        const defaultCommunity = communities[0]
         setCommunity(defaultCommunity)
 
         // Fetch community details
-        const [membersResponse, statsResponse, forecastResponse] = await Promise.all([
-          CommunityService.getCommunityMembers(defaultCommunity.id),
-          CommunityService.getCommunityStats(defaultCommunity.id),
-          CommunityService.getCommunityEnergyForecast(defaultCommunity.id),
+        const [membersResponse, statsResponse] = await Promise.all([
+          api.get(`/community/${defaultCommunity.id}/members`),
+          api.get(`/community/${defaultCommunity.id}/stats`),
         ])
 
-        if (membersResponse.success) {
-          setCommunityMembers(Array.isArray(membersResponse.members) ? membersResponse.members : [])
-        } else {
-          setCommunityMembers([])
-        }
-
-        if (statsResponse.success) {
-          setCommunityStats(statsResponse.stats)
-        }
-
-        if (forecastResponse.success) {
-          setCommunityForecasts(
-            Array.isArray(forecastResponse.forecast?.forecast) ? forecastResponse.forecast.forecast : [],
-          )
-        } else {
-          setCommunityForecasts([])
-        }
-      } else {
-        setError("No community found. Please contact support.")
+        setCommunityMembers(membersResponse.data.members)
+        setCommunityStats(statsResponse.data)
       }
+
+      setError(null)
     } catch (err) {
       console.error("Error fetching community data:", err)
       setError(err.response?.data?.msg || "Failed to fetch community data")
@@ -92,7 +55,7 @@ const Community = () => {
     }
   }
 
-  if (loading && !community) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
@@ -101,23 +64,8 @@ const Community = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-teal-600">Community Energy Sharing</h1>
-          <p className="text-gray-600">Connect and trade with your local energy community</p>
-        </div>
-
-        <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
-          <Button
-            onClick={fetchCommunityData}
-            className={`bg-teal-600 hover:bg-teal-700 ${loading ? "opacity-70" : ""}`}
-            disabled={loading}
-          >
-            {loading ? "Refreshing..." : "Refresh Data"}
-          </Button>
-        </div>
-      </div>
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">Community Energy Sharing</h1>
 
       {error && (
         <Card className="bg-red-50 mb-6">
@@ -170,50 +118,6 @@ const Community = () => {
               )}
             </CardContent>
           </Card>
-
-          {communityStats && (
-            <Card className="mt-6">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center">
-                  <FaChartLine className="mr-2" />
-                  Community Stats
-                </CardTitle>
-                <CardDescription>Overall community energy statistics</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 p-4 rounded-md">
-                    <div className="flex items-center text-teal-600 mb-2">
-                      <FaUsers className="mr-2" />
-                      <h3 className="font-medium">Members</h3>
-                    </div>
-                    <p className="text-2xl font-bold">{communityStats.member_count}</p>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-md">
-                    <div className="flex items-center text-teal-600 mb-2">
-                      <FaSolarPanel className="mr-2" />
-                      <h3 className="font-medium">Total Solar</h3>
-                    </div>
-                    <p className="text-2xl font-bold">{communityStats.total_solar_capacity?.toFixed(2) || 0} kW</p>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-md">
-                    <div className="flex items-center text-teal-600 mb-2">
-                      <FaBatteryFull className="mr-2" />
-                      <h3 className="font-medium">Total Battery</h3>
-                    </div>
-                    <p className="text-2xl font-bold">{communityStats.total_battery_capacity?.toFixed(2) || 0} kWh</p>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-md">
-                    <div className="flex items-center text-teal-600 mb-2">
-                      <FaExchangeAlt className="mr-2" />
-                      <h3 className="font-medium">Energy Traded</h3>
-                    </div>
-                    <p className="text-2xl font-bold">{communityStats.total_energy_traded?.toFixed(2) || 0} kWh</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         {/* Community Details */}
@@ -225,54 +129,37 @@ const Community = () => {
                 <CardDescription>{community.description || "A community for energy sharing"}</CardDescription>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
+                <Tabs defaultValue="overview">
                   <TabsList>
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="members">Members</TabsTrigger>
-                    <TabsTrigger value="forecast">Energy Forecast</TabsTrigger>
                     <TabsTrigger value="trades">Energy Trades</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="overview" className="space-y-4 mt-4">
                     {communityStats ? (
                       <>
-                        <div className="bg-gray-50 p-4 rounded-md">
-                          <div className="flex items-center text-teal-600 mb-4">
-                            <FaLightbulb className="mr-2" />
-                            <h3 className="font-medium">Community Energy Overview</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="bg-gray-50 p-4 rounded-md">
+                            <div className="flex items-center text-teal-600 mb-2">
+                              <FaUsers className="mr-2" />
+                              <h3 className="font-medium">Members</h3>
+                            </div>
+                            <p className="text-2xl font-bold">{communityStats.member_count}</p>
                           </div>
-                          <p className="text-sm text-gray-600 mb-4">
-                            Shared energy within the community allows all members to benefit from reduced grid
-                            dependency and lower costs.
-                          </p>
-                          <div className="h-[250px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <AreaChart data={communityForecasts} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="hour" tickFormatter={(hour) => `${hour}:00`} />
-                                <YAxis />
-                                <Tooltip formatter={(value) => [`${value} kWh`, ""]} />
-                                <Legend />
-                                <Area
-                                  type="monotone"
-                                  dataKey="estimated_generation"
-                                  stackId="1"
-                                  name="Generation"
-                                  stroke="#4FD1C5"
-                                  fill="#4FD1C5"
-                                  fillOpacity={0.6}
-                                />
-                                <Area
-                                  type="monotone"
-                                  dataKey="estimated_demand"
-                                  stackId="2"
-                                  name="Demand"
-                                  stroke="#FC8181"
-                                  fill="#FC8181"
-                                  fillOpacity={0.6}
-                                />
-                              </AreaChart>
-                            </ResponsiveContainer>
+                          <div className="bg-gray-50 p-4 rounded-md">
+                            <div className="flex items-center text-teal-600 mb-2">
+                              <FaSolarPanel className="mr-2" />
+                              <h3 className="font-medium">Total Solar</h3>
+                            </div>
+                            <p className="text-2xl font-bold">{communityStats.total_solar_capacity.toFixed(2)} kW</p>
+                          </div>
+                          <div className="bg-gray-50 p-4 rounded-md">
+                            <div className="flex items-center text-teal-600 mb-2">
+                              <FaBatteryFull className="mr-2" />
+                              <h3 className="font-medium">Total Battery</h3>
+                            </div>
+                            <p className="text-2xl font-bold">{communityStats.total_battery_capacity.toFixed(2)} kWh</p>
                           </div>
                         </div>
 
@@ -282,7 +169,7 @@ const Community = () => {
                             <h3 className="font-medium">Energy Trading</h3>
                           </div>
                           <p className="text-lg font-bold mb-2">
-                            Total Energy Traded: {communityStats.total_energy_traded?.toFixed(2) || 0} kWh
+                            Total Energy Traded: {communityStats.total_energy_traded.toFixed(2)} kWh
                           </p>
                           <Button
                             onClick={() => (window.location.href = `/trading?community=${community.id}`)}
@@ -311,8 +198,6 @@ const Community = () => {
                             <tr className="border-b">
                               <th className="px-4 py-2 text-left">Member</th>
                               <th className="px-4 py-2 text-left">Role</th>
-                              <th className="px-4 py-2 text-left">Solar Capacity</th>
-                              <th className="px-4 py-2 text-left">Battery Capacity</th>
                               <th className="px-4 py-2 text-left">Joined</th>
                             </tr>
                           </thead>
@@ -331,8 +216,6 @@ const Community = () => {
                                     {member.role}
                                   </span>
                                 </td>
-                                <td className="px-4 py-2">{member.solar_capacity || 0} kW</td>
-                                <td className="px-4 py-2">{member.battery_capacity || 0} kWh</td>
                                 <td className="px-4 py-2">{new Date(member.joined_at).toLocaleDateString()}</td>
                               </tr>
                             ))}
@@ -340,64 +223,6 @@ const Community = () => {
                         </table>
                       </div>
                     )}
-                  </TabsContent>
-
-                  <TabsContent value="forecast" className="mt-4">
-                    <div className="space-y-4">
-                      <div className="bg-gray-50 p-4 rounded-md">
-                        <h3 className="font-medium text-teal-700 mb-3">24-Hour Energy Forecast</h3>
-                        <p className="text-sm text-gray-600 mb-4">
-                          This forecast shows the predicted energy generation and demand for the community over the next
-                          24 hours.
-                        </p>
-                        <div className="h-[300px]">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={communityForecasts} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="hour" tickFormatter={(hour) => `${hour}:00`} />
-                              <YAxis label={{ value: "Energy (kWh)", angle: -90, position: "insideLeft" }} />
-                              <Tooltip formatter={(value) => [`${value} kWh`, ""]} />
-                              <Legend />
-                              <Bar
-                                dataKey="net_energy"
-                                name="Net Energy"
-                                fill={communityForecasts?.some((f) => f.net_energy < 0) ? "#68D391" : "#F56565"}
-                              />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">
-                          Positive values indicate excess energy available for export, negative values indicate energy
-                          deficit requiring import.
-                        </p>
-                      </div>
-
-                      {communityStats && communityStats.energy_forecast && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="bg-blue-50 p-4 rounded-lg">
-                            <h3 className="font-medium text-blue-700 mb-2">Peak Generation</h3>
-                            <p className="text-lg font-bold">{communityStats.peak_generation_time || "12:00 PM"}</p>
-                            <p className="text-sm text-gray-600">
-                              {communityStats.peak_generation_value?.toFixed(2) || "N/A"} kWh
-                            </p>
-                          </div>
-                          <div className="bg-red-50 p-4 rounded-lg">
-                            <h3 className="font-medium text-red-700 mb-2">Peak Demand</h3>
-                            <p className="text-lg font-bold">{communityStats.peak_demand_time || "7:00 PM"}</p>
-                            <p className="text-sm text-gray-600">
-                              {communityStats.peak_demand_value?.toFixed(2) || "N/A"} kWh
-                            </p>
-                          </div>
-                          <div className="bg-green-50 p-4 rounded-lg">
-                            <h3 className="font-medium text-green-700 mb-2">Self-Sufficiency</h3>
-                            <p className="text-lg font-bold">
-                              {communityStats.self_sufficiency_rate?.toFixed(1) || "N/A"}%
-                            </p>
-                            <p className="text-sm text-gray-600">Percentage of demand met by community generation</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
                   </TabsContent>
 
                   <TabsContent value="trades" className="mt-4">
@@ -470,5 +295,5 @@ const Community = () => {
   )
 }
 
-export default Community
+export default CommunityPage
 

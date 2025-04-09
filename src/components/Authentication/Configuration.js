@@ -14,8 +14,9 @@ import {
   FaTrash,
   FaPlus,
   FaSpinner,
+  FaCheckCircle,
 } from "react-icons/fa"
-import api from "../../config/axios"
+import api from "../../services/api"
 import { useAuth } from "../../contexts/AuthContext"
 
 // Common appliance presets for quick selection
@@ -43,7 +44,7 @@ const Configuration = () => {
     latitude: "",
     longitude: "",
     location: "",
-    phone: "", // Added phone field
+    phone: "",
   })
   const [appliances, setAppliances] = useState([
     { name: "Refrigerator", power_consumption: 150, daily_usage_hours: 24 },
@@ -57,12 +58,14 @@ const Configuration = () => {
   const [weatherData, setWeatherData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
   const [locationLoading, setLocationLoading] = useState(false)
   const [applianceSaveStatus, setApplianceSaveStatus] = useState(null)
   const [debugInfo, setDebugInfo] = useState(null) // For debugging
+  const [configComplete, setConfigComplete] = useState(false)
 
   const navigate = useNavigate()
-  const { user, configureHousehold, logout, clearMessages } = useAuth()
+  const { user, logout, clearMessages } = useAuth()
 
   // Check for authentication on component mount
   useEffect(() => {
@@ -82,6 +85,8 @@ const Configuration = () => {
           location: user.location || "",
           latitude: user.latitude || "",
           longitude: user.longitude || "",
+          solar_capacity: user.solar_capacity || 5.0,
+          battery_capacity: user.battery_capacity || 10.0,
         }))
       }
     }
@@ -191,12 +196,24 @@ const Configuration = () => {
       daily_usage_hours: 0,
     })
     setError(null)
+    setSuccess("Appliance added successfully")
+
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      setSuccess(null)
+    }, 3000)
   }
 
   const removeAppliance = (index) => {
     const updatedAppliances = [...appliances]
     updatedAppliances.splice(index, 1)
     setAppliances(updatedAppliances)
+    setSuccess("Appliance removed successfully")
+
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      setSuccess(null)
+    }, 3000)
   }
 
   const addPresetAppliance = (preset) => {
@@ -204,6 +221,12 @@ const Configuration = () => {
     const exists = appliances.some((app) => app.name === preset.name)
     if (!exists) {
       setAppliances([...appliances, { ...preset }])
+      setSuccess(`${preset.name} added successfully`)
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
     } else {
       setError(`A ${preset.name} is already in your appliance list`)
     }
@@ -226,6 +249,7 @@ const Configuration = () => {
 
     setLoading(true)
     setError(null)
+    setSuccess(null)
     setApplianceSaveStatus(null)
     setDebugInfo(null)
 
@@ -249,12 +273,15 @@ const Configuration = () => {
         const configResponse = await api.post("/household/configuration", formData)
         console.log("Configuration response:", configResponse.data)
         setDebugInfo((prev) => ({ ...prev, configResponse: configResponse.data }))
+
+        if (!configResponse.data.success) {
+          throw new Error(configResponse.data.msg || "Failed to update configuration")
+        }
       } catch (configError) {
         console.error("Configuration error:", configError)
         setDebugInfo((prev) => ({
           ...prev,
           configError: configError.toString(),
-          configErrorResponse: configError.response?.data,
         }))
         throw configError
       }
@@ -262,28 +289,56 @@ const Configuration = () => {
       // Then save all appliances
       try {
         // First, clear existing appliances to avoid duplicates
-        await api.delete("/appliance/clear-all")
+        const clearResponse = await api.delete("/appliance/clear-all")
+        console.log("Clear appliances response:", clearResponse.data)
+        setDebugInfo((prev) => ({ ...prev, clearResponse: clearResponse.data }))
 
-        // Then add each appliance individually
-        for (const appliance of appliances) {
-          await api.post("/appliance/add", appliance)
+        if (!clearResponse.data.success) {
+          console.warn("Warning: Could not clear existing appliances:", clearResponse.data.msg)
         }
 
-        setApplianceSaveStatus({ success: true, message: "All appliances saved successfully" })
+        // Then add each appliance individually
+        const applianceResponses = []
+        for (const appliance of appliances) {
+          const appResponse = await api.post("/appliance/add", appliance)
+          console.log(`Added appliance ${appliance.name}:`, appResponse.data)
+          applianceResponses.push(appResponse.data)
+
+          if (!appResponse.data.success) {
+            console.error(`Failed to add appliance ${appliance.name}:`, appResponse.data.msg)
+          }
+        }
+
+        setDebugInfo((prev) => ({ ...prev, applianceResponses }))
+        setApplianceSaveStatus({
+          success: true,
+          message: `Saved ${applianceResponses.filter((r) => r.success).length} of ${appliances.length} appliances successfully`,
+        })
       } catch (applianceError) {
         console.error("Error saving appliances:", applianceError)
         setApplianceSaveStatus({
           success: false,
-          message: "Some appliances could not be saved",
+          message: applianceError.toString(),
+        })
+        setApplianceSaveStatus({
+          success: false,
+          message: "Some appliances could not be saved. Please check the console for details.",
           error: applianceError.toString(),
         })
-        // Continue anyway - we'll just warn the user
+        setDebugInfo((prev) => ({ ...prev, applianceError: applianceError.toString() }))
       }
 
-      // Navigate to dashboard after successful configuration
-      navigate("/dashboard")
+      // Set configuration complete flag
+      setConfigComplete(true)
+      setSuccess("Configuration completed successfully! Redirecting to dashboard...")
+
+      // Navigate to dashboard after successful configuration and a short delay
+      setTimeout(() => {
+        navigate("/dashboard")
+      }, 3000)
     } catch (err) {
       console.error("Configuration error:", err)
+      setDebugInfo((prev) => ({ ...prev, finalError: err.toString() }))
 
       if (err.response?.status === 401) {
         setError("Authentication failed. Please log in again.")
@@ -293,7 +348,7 @@ const Configuration = () => {
           navigate("/login")
         }, 2000)
       } else {
-        setError(err.response?.data?.msg || "Failed to configure household. Please try again.")
+        setError(err.response?.data?.msg || err.message || "Failed to configure household. Please try again.")
       }
     } finally {
       setLoading(false)
@@ -712,6 +767,20 @@ const Configuration = () => {
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md mb-4 flex items-start">
             <FaExclamationTriangle className="h-5 w-5 mr-2 mt-0.5" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {success && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-md mb-4 flex items-start">
+            <FaCheckCircle className="h-5 w-5 mr-2 mt-0.5" />
+            <span>{success}</span>
+          </div>
+        )}
+
+        {configComplete && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-md mb-4 flex items-start">
+            <FaCheckCircle className="h-5 w-5 mr-2 mt-0.5" />
+            <span>Configuration completed successfully! Redirecting to dashboard...</span>
           </div>
         )}
 

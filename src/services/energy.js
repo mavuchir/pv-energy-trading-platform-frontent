@@ -1,7 +1,7 @@
 import api from "./api"
 
 const EnergyService = {
-  // Dashboard data
+  // Get energy overview
   getEnergyOverview: async (period = "day") => {
     try {
       const response = await api.get(`/energy/overview?period=${period}`)
@@ -12,7 +12,7 @@ const EnergyService = {
     }
   },
 
-  // Real-time data
+  // Get real-time energy data
   getRealTimeData: async () => {
     try {
       const response = await api.get("/energy/real-time")
@@ -23,47 +23,49 @@ const EnergyService = {
     }
   },
 
-  // Generation data
+  // Get generation data
   getGenerationData: async (period = "day") => {
     try {
       const response = await api.get(`/energy/generation?period=${period}`)
-      return { success: true, data: response.data }
+      return { success: true, data: response.data || [] }
     } catch (error) {
       console.error("Error fetching generation data:", error)
-      return { success: false, error: error.response?.data?.msg || "Failed to fetch generation data" }
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch generation data", data: [] }
     }
   },
 
-  // Consumption data
+  // Get consumption data
   getConsumptionData: async (period = "day") => {
     try {
       const response = await api.get(`/energy/consumption?period=${period}`)
-      return { success: true, data: response.data }
+      return { success: true, data: response.data || [] }
     } catch (error) {
       console.error("Error fetching consumption data:", error)
-      return { success: false, error: error.response?.data?.msg || "Failed to fetch consumption data" }
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch consumption data", data: [] }
     }
   },
 
-  // Battery data
+  // Get battery data
   getBatteryData: async (period = "day") => {
     try {
       const response = await api.get(`/energy/battery?period=${period}`)
-      return { success: true, data: response.data }
+      return { success: true, data: response.data || [] }
     } catch (error) {
       console.error("Error fetching battery data:", error)
-      return { success: false, error: error.response?.data?.msg || "Failed to fetch battery data" }
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch battery data", data: [] }
     }
   },
 
-  // Grid data
+  // Get grid data
   getGridData: async (period = "day") => {
     try {
       const response = await api.get(`/energy/grid?period=${period}`)
-      return { success: true, data: response.data }
+      // Ensure we return an array even if the API returns an object with records
+      const gridData = response.data?.records || response.data || []
+      return { success: true, data: gridData }
     } catch (error) {
       console.error("Error fetching grid data:", error)
-      return { success: false, error: error.response?.data?.msg || "Failed to fetch grid data" }
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch grid data", data: [] }
     }
   },
 
@@ -88,7 +90,28 @@ const EnergyService = {
       return { success: false, error: error.response?.data?.msg || "Failed to fetch energy forecast" }
     }
   },
+
+  // Get weather data
+  getWeatherData: async () => {
+    try {
+      const response = await api.get("/energy/weather")
+      return { success: true, data: response.data }
+    } catch (error) {
+      console.error("Error fetching weather data:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch weather data" }
+    }
+  },
+
+  // Get market prices
+  getMarketPrices: async () => {
+    try {
+      const response = await api.get("/energy/market-prices")
+      return { success: true, data: response.data }
+    } catch (error) {
+      console.error("Error fetching market prices:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch market prices" }
+    }
+  },
 }
 
 export default EnergyService
-

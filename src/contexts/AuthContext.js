@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect } from "react"
-import api from "../config/axios"
+import api from "../services/api"
 
 const AuthContext = createContext()
 
@@ -147,9 +147,9 @@ export const AuthProvider = ({ children }) => {
     setError(null)
     try {
       const response = await api.put("/auth/update-profile", userData)
-      setUser(response.data.user)
+      setUser(response.data)
       setSuccessMessage("Profile updated successfully!")
-      return response.data.user
+      return response.data
     } catch (error) {
       console.error("Profile update error:", error)
 

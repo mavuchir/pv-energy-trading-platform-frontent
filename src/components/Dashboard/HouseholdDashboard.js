@@ -1,10 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "../../contexts/AuthContext"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/Card"
-import { Button } from "../../components/ui/button"
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts"
+import { useNavigate } from "react-router-dom"
 import {
   FaSolarPanel,
   FaBolt,
@@ -14,16 +11,21 @@ import {
   FaPlug,
   FaShoppingCart,
   FaSync,
+  FaCheckCircle,
 } from "react-icons/fa"
 import EnergyService from "../../services/energy"
 import ApplianceService from "../../services/appliance"
-import { useNavigate } from "react-router-dom"
+import { useAuth } from "../../contexts/AuthContext"
 import HouseholdService from "../../services/household"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/Card"
+import { Button } from "../ui/button"
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts"
 
-const Dashboard = () => {
+const HouseholdDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null)
   const [statusData, setStatusData] = useState(null)
   const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
   const [loading, setLoading] = useState(true)
   const [selectedPeriod, setSelectedPeriod] = useState("day")
   const [energyData, setEnergyData] = useState({
@@ -35,6 +37,7 @@ const Dashboard = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [availableEnergy, setAvailableEnergy] = useState(0)
   const [currentPrice, setCurrentPrice] = useState(0.2)
+  const [weatherData, setWeatherData] = useState(null)
   const { user } = useAuth()
   const navigate = useNavigate()
   const [configurationCompleted, setConfigurationCompleted] = useState(true) // Default to true to avoid unnecessary redirects
@@ -59,12 +62,22 @@ const Dashboard = () => {
         if (energyOverviewResponse.data.energy_prices?.p2p) {
           setCurrentPrice(energyOverviewResponse.data.energy_prices.p2p)
         }
+
+        // Set weather data if available
+        if (energyOverviewResponse.data.weather) {
+          setWeatherData(energyOverviewResponse.data.weather)
+        }
       }
 
       // Fetch real-time status
       const realTimeResponse = await EnergyService.getRealTimeData()
       if (realTimeResponse.success) {
         setStatusData(realTimeResponse.data)
+
+        // If weather data not set from overview, try to get it from real-time data
+        if (!weatherData && realTimeResponse.data.weather) {
+          setWeatherData(realTimeResponse.data.weather)
+        }
       }
 
       // Fetch energy generation data with selected period
@@ -79,19 +92,35 @@ const Dashboard = () => {
       })
 
       // Fetch appliances
-      const appliancesResponse = await ApplianceService.getAppliances()
+      const appliancesResponse = await ApplianceService.getAllAppliances()
       if (appliancesResponse.success) {
-        setAppliances(appliancesResponse.data)
+        setAppliances(appliancesResponse.appliances || [])
 
         // Initialize status for each appliance
         const initialStatus = {}
-        appliancesResponse.data.forEach((appliance) => {
-          initialStatus[appliance.id] = appliance.is_on || false
-        })
+        if (Array.isArray(appliancesResponse.appliances)) {
+          appliancesResponse.appliances.forEach((appliance) => {
+            initialStatus[appliance.id] = appliance.is_on || false
+          })
+        }
         setApplianceStatus(initialStatus)
       }
 
+      // If we still don't have weather data, try to fetch it directly
+      if (!weatherData) {
+        const weatherResponse = await EnergyService.getWeatherData()
+        if (weatherResponse.success) {
+          setWeatherData(weatherResponse.data)
+        }
+      }
+
       setError(null)
+      setSuccess("Dashboard data loaded successfully")
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
     } catch (err) {
       console.error("Error in data fetching:", err)
       setError(err.response?.data?.msg || "Failed to fetch data")
@@ -115,17 +144,32 @@ const Dashboard = () => {
     try {
       setLoading(true)
 
-      // Call the simulation endpoint
+      // Get current weather data for more accurate simulation
+      let irradiance = 800 // Default value
+      let temperature = 25 // Default value
+
+      if (weatherData) {
+        irradiance = weatherData.irradiance || irradiance
+        temperature = weatherData.temperature || temperature
+      }
+
+      // Call the simulation endpoint with weather data
       await EnergyService.recordEnergyData({
         type: "generation",
         amount: Math.random() * 5,
         source: "solar",
-        irradiance: Math.random() * 1000,
-        temperature: 20 + Math.random() * 10,
+        irradiance: irradiance,
+        temperature: temperature,
       })
 
       // Refresh data after simulation
       setRefreshTrigger((prev) => prev + 1)
+      setSuccess("Simulation completed successfully")
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
     } catch (err) {
       console.error("Simulation error:", err)
       setError("Failed to run simulation. Please try again.")
@@ -147,6 +191,12 @@ const Dashboard = () => {
 
       // Refresh data to update consumption
       setRefreshTrigger((prev) => prev + 1)
+      setSuccess(`${name} turned ${!currentStatus ? "on" : "off"} successfully`)
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
     } catch (err) {
       console.error("Error toggling appliance status:", err)
 
@@ -170,24 +220,94 @@ const Dashboard = () => {
       return chartData
     }
 
-    // Use the longer array as the base
-    const baseArray =
-      energyData.generation.length >= energyData.consumption.length ? energyData.generation : energyData.consumption
+    // Create a map to store data by time
+    const dataByTime = new Map()
 
-    baseArray.forEach((item, index) => {
+    // Process generation data
+    energyData.generation.forEach((item) => {
       const timestamp = new Date(item.timestamp)
-      const timeStr = timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
-      const genValue = index < energyData.generation?.length ? energyData.generation[index].amount : 0
-      const consValue = index < energyData.consumption?.length ? energyData.consumption[index].amount : 0
+      // Format time based on selected period
+      let timeKey
+      if (selectedPeriod === "day") {
+        timeKey = timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      } else if (selectedPeriod === "week") {
+        timeKey = timestamp.toLocaleDateString([], { weekday: "short" })
+      } else {
+        // month
+        timeKey = timestamp.toLocaleDateString([], { month: "short", day: "numeric" })
+      }
 
-      chartData.push({
-        time: timeStr,
-        generation: genValue,
-        consumption: consValue,
-        net: genValue - consValue,
-      })
+      if (!dataByTime.has(timeKey)) {
+        dataByTime.set(timeKey, {
+          time: timeKey,
+          timestamp: timestamp,
+          generation: 0,
+          consumption: 0,
+          net: 0,
+          batteryCharge: 0,
+          gridImport: 0,
+          gridExport: 0,
+        })
+      }
+
+      dataByTime.get(timeKey).generation += item.amount || 0
     })
+
+    // Process consumption data
+    energyData.consumption.forEach((item) => {
+      const timestamp = new Date(item.timestamp)
+
+      // Format time based on selected period
+      let timeKey
+      if (selectedPeriod === "day") {
+        timeKey = timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      } else if (selectedPeriod === "week") {
+        timeKey = timestamp.toLocaleDateString([], { weekday: "short" })
+      } else {
+        // month
+        timeKey = timestamp.toLocaleDateString([], { month: "short", day: "numeric" })
+      }
+
+      if (!dataByTime.has(timeKey)) {
+        dataByTime.set(timeKey, {
+          time: timeKey,
+          timestamp: timestamp,
+          generation: 0,
+          consumption: 0,
+          net: 0,
+          batteryCharge: 0,
+          gridImport: 0,
+          gridExport: 0,
+        })
+      }
+
+      dataByTime.get(timeKey).consumption += item.amount || 0
+    })
+
+    // Calculate net values and determine battery/grid usage
+    dataByTime.forEach((item) => {
+      // Calculate net energy (generation - consumption)
+      item.net = item.generation - item.consumption
+
+      // If net is positive, we're generating more than consuming
+      if (item.net > 0) {
+        // Excess energy goes to battery or grid export
+        item.batteryCharge = Math.min(item.net, 2) // Assume max 2kWh battery charge rate
+        item.gridExport = Math.max(0, item.net - item.batteryCharge)
+      }
+      // If net is negative, we're consuming more than generating
+      else if (item.net < 0) {
+        // Deficit is covered by battery discharge or grid import
+        item.batteryCharge = Math.max(item.net, -2) // Negative value indicates discharge, max 2kWh
+        item.gridImport = Math.max(0, -item.net - Math.abs(item.batteryCharge))
+      }
+
+      chartData.push(item)
+    })
+
+    // Sort by timestamp
+    chartData.sort((a, b) => a.timestamp - b.timestamp)
 
     return chartData
   }
@@ -211,7 +331,7 @@ const Dashboard = () => {
   // Redirect to settings if configuration is not completed
   useEffect(() => {
     if (user && configurationCompleted === false) {
-      navigate("/settings")
+      navigate("/configuration")
     }
   }, [user, configurationCompleted, navigate])
 
@@ -275,6 +395,29 @@ const Dashboard = () => {
   // Prepare energy monitoring chart data
   const energyMonitoringData = prepareChartData().length > 0 ? prepareChartData() : []
 
+  // Calculate battery charge rate based on energy balance
+  // If generation > consumption, battery can charge (positive rate)
+  // If consumption > generation, battery must discharge (negative rate)
+  const calculateBatteryChargeRate = () => {
+    const generation = status.generation || 0
+    const consumption = status.consumption || calculateRealTimeConsumption()
+    const energyBalance = generation - consumption
+
+    // If positive balance, battery can charge (up to a max rate)
+    if (energyBalance > 0) {
+      return Math.min(energyBalance, 2) // Assume max 2kW charge rate
+    }
+    // If negative balance, battery must discharge (up to a max rate)
+    else if (energyBalance < 0 && status.batteryLevel > 0) {
+      return Math.max(energyBalance, -2) // Negative value, assume max 2kW discharge rate
+    }
+
+    return 0 // No charge/discharge if balanced or battery empty
+  }
+
+  // Get the corrected battery charge rate
+  const batteryChargeRate = calculateBatteryChargeRate()
+
   return (
     <div className="container mx-auto p-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
@@ -329,6 +472,36 @@ const Dashboard = () => {
         </Card>
       )}
 
+      {success && (
+        <Card className="bg-green-50 mb-6">
+          <CardContent className="pt-6">
+            <div className="flex items-center text-green-600">
+              <FaCheckCircle className="mr-2" />
+              <p>{success}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Weather Information */}
+      {weatherData && (
+        <Card className="mb-6 bg-blue-50 border-blue-100">
+          <CardContent className="pt-6">
+            <div className="flex items-start">
+              <div className="mr-4">
+                <h3 className="font-medium text-blue-800">Current Weather</h3>
+                <p className="text-sm text-blue-700">Temperature: {weatherData.temperature}°C</p>
+                <p className="text-sm text-blue-700">Cloud Cover: {weatherData.cloud_cover}%</p>
+                <p className="text-sm text-blue-700">Solar Irradiance: {weatherData.irradiance} W/m²</p>
+              </div>
+              <div className="ml-auto">
+                <p className="text-sm text-blue-700">{weatherData.description || "Clear skies"}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card className="bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-100">
@@ -339,7 +512,7 @@ const Dashboard = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Current Generation</p>
-                <p className="text-2xl font-bold text-yellow-700">{(status.generation || 0).toFixed(1)} kW</p>
+                <p className="text-2xl font-bold text-yellow-700">{(status.generation || 0).toFixed(2)} kW</p>
                 <p className="text-xs text-green-600">
                   {dashboard.today_generation > 0
                     ? `${dashboard.today_generation.toFixed(1)} kWh today`
@@ -359,7 +532,7 @@ const Dashboard = () => {
               <div>
                 <p className="text-sm text-gray-600">Current Consumption</p>
                 <p className="text-2xl font-bold text-blue-700">
-                  {(status.consumption || calculateRealTimeConsumption()).toFixed(1)} kW
+                  {(status.consumption || calculateRealTimeConsumption()).toFixed(2)} kW
                 </p>
                 <p className="text-xs text-red-500">
                   {dashboard.today_consumption > 0
@@ -381,10 +554,10 @@ const Dashboard = () => {
                 <p className="text-sm text-gray-600">Battery Level</p>
                 <p className="text-2xl font-bold text-teal-700">{status.batteryLevel?.toFixed(0) || "0"}%</p>
                 <p className="text-xs text-gray-600">
-                  {status.batteryChargeRate > 0
-                    ? `Charging +${status.batteryChargeRate.toFixed(1)} kW`
-                    : status.batteryChargeRate < 0
-                      ? `Discharging ${status.batteryChargeRate.toFixed(1)} kW`
+                  {batteryChargeRate > 0
+                    ? `Charging +${batteryChargeRate.toFixed(1)} kW`
+                    : batteryChargeRate < 0
+                      ? `Discharging ${Math.abs(batteryChargeRate).toFixed(1)} kW`
                       : "Idle"}
                 </p>
               </div>
@@ -456,6 +629,33 @@ const Dashboard = () => {
                   fill="#FC8181"
                   fillOpacity={0.6}
                   name="Consumption"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="batteryCharge"
+                  stackId="3"
+                  stroke="#F6AD55"
+                  fill="#F6AD55"
+                  fillOpacity={0.6}
+                  name="Battery"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="gridImport"
+                  stackId="4"
+                  stroke="#9F7AEA"
+                  fill="#9F7AEA"
+                  fillOpacity={0.6}
+                  name="Grid Import"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="gridExport"
+                  stackId="5"
+                  stroke="#38B2AC"
+                  fill="#38B2AC"
+                  fillOpacity={0.6}
+                  name="Grid Export"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -586,5 +786,4 @@ const Dashboard = () => {
   )
 }
 
-export default Dashboard
-
+export default HouseholdDashboard
