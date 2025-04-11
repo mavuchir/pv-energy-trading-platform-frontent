@@ -61,8 +61,7 @@ const EnergyService = {
     try {
       const response = await api.get(`/energy/grid?period=${period}`)
       // Ensure we return an array even if the API returns an object with records
-      const gridData = response.data?.records || response.data || []
-      return { success: true, data: gridData }
+      return { success: true, data: response.data || [] }
     } catch (error) {
       console.error("Error fetching grid data:", error)
       return { success: false, error: error.response?.data?.msg || "Failed to fetch grid data", data: [] }

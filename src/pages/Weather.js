@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "../contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs"
@@ -42,7 +41,6 @@ const Weather = () => {
   const [historicalWeather, setHistoricalWeather] = useState([])
   const [solarRadiationData, setSolarRadiationData] = useState([])
   const [selectedDays, setSelectedDays] = useState(3)
-  const { user } = useAuth()
 
   const fetchWeatherData = async () => {
     try {
@@ -228,10 +226,10 @@ const Weather = () => {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="flex flex-col items-center justify-center md:col-span-2">
               <div className="flex items-center">
-                <div className="text-6xl mr-4">{getWeatherIcon(currentWeather?.condition)}</div>
+                <div className="text-6xl mr-4">{getWeatherIcon(currentWeather?.weather_description)}</div>
                 <div>
                   <p className="text-4xl font-bold">{currentWeather?.temperature?.toFixed(1) || "N/A"}°C</p>
-                  <p className="text-lg text-gray-600 capitalize">{currentWeather?.condition || "Unknown"}</p>
+                  <p className="text-lg text-gray-600 capitalize">{currentWeather?.weather_description || "Unknown"}</p>
                 </div>
               </div>
               <p className="text-sm text-gray-500 mt-2">
@@ -254,7 +252,7 @@ const Weather = () => {
                   <FaSun className="mr-2" />
                   <h3 className="font-medium">Solar</h3>
                 </div>
-                <p className="text-2xl font-bold">{currentWeather?.solar_irradiance?.toFixed(0) || "N/A"} W/m²</p>
+                <p className="text-2xl font-bold">{currentWeather?.irradiance?.toFixed(0) || "N/A"} W/m²</p>
                 <p className="text-xs text-gray-600">UV Index: {currentWeather?.uv_index || "N/A"}</p>
               </div>
 
@@ -330,7 +328,7 @@ const Weather = () => {
                     {weatherForecast.slice(0, 24).map((hour, index) => (
                       <div key={index} className="flex flex-col items-center p-2 bg-gray-50 rounded-lg w-20">
                         <p className="text-xs text-gray-500">{new Date(hour.timestamp).getHours()}:00</p>
-                        <div className="my-2 text-2xl">{getWeatherIcon(hour.condition)}</div>
+                        <div className="my-2 text-2xl">{getWeatherIcon(hour.weather_description)}</div>
                         <p className="text-sm font-bold">{hour.temperature.toFixed(1)}°C</p>
                         <p className="text-xs text-gray-500">{hour.cloud_cover}%</p>
                       </div>
@@ -398,7 +396,7 @@ const Weather = () => {
                   <h3 className="font-medium text-yellow-700 mb-2">Peak Solar Irradiance</h3>
                   <p className="text-2xl font-bold">
                     {solarForecast.length > 0
-                      ? Math.max(...solarForecast.map((item) => item.solar_irradiance)).toFixed(0)
+                      ? Math.max(...solarForecast.map((item) => item.solar_irradiance || 0)).toFixed(0)
                       : "N/A"}{" "}
                     W/m²
                   </p>
@@ -407,7 +405,7 @@ const Weather = () => {
                     {solarForecast.length > 0
                       ? new Date(
                           solarForecast.reduce((max, item) =>
-                            item.solar_irradiance > max.solar_irradiance ? item : max,
+                            (item.solar_irradiance || 0) > (max.solar_irradiance || 0) ? item : max,
                           ).timestamp,
                         ).getHours() + ":00"
                       : "N/A"}
@@ -487,7 +485,9 @@ const Weather = () => {
                   <p className="text-2xl font-bold">
                     {historicalWeather.length > 0
                       ? historicalWeather
-                          .reduce((max, item) => (item.total_generation > max.total_generation ? item : max))
+                          .reduce((max, item) => (item.total_generation > max.total_generation ? item : max), {
+                            total_generation: 0,
+                          })
                           .total_generation.toFixed(1)
                       : "N/A"}{" "}
                     kWh
@@ -495,8 +495,9 @@ const Weather = () => {
                   <p className="text-sm text-gray-600">
                     {historicalWeather.length > 0
                       ? formatDate(
-                          historicalWeather.reduce((max, item) =>
-                            item.total_generation > max.total_generation ? item : max,
+                          historicalWeather.reduce(
+                            (max, item) => (item.total_generation > max.total_generation ? item : max),
+                            { total_generation: 0 },
                           ).date,
                         )
                       : "N/A"}
@@ -557,4 +558,3 @@ const Weather = () => {
 }
 
 export default Weather
-

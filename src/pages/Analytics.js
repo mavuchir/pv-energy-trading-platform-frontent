@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "../contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs"
@@ -42,7 +41,6 @@ const Analytics = () => {
   const [applianceUsage, setApplianceUsage] = useState([])
   const [priceData, setPriceData] = useState([])
   const [summaryData, setSummaryData] = useState(null)
-  const { user } = useAuth()
 
   const fetchAnalyticsData = async () => {
     try {
@@ -61,10 +59,10 @@ const Analytics = () => {
       const gridResponse = await EnergyService.getGridData(selectedPeriod)
 
       // Fetch appliance usage summary
-      const applianceUsageResponse = await ApplianceService.getApplianceUsageSummary(selectedPeriod)
+      const applianceUsageResponse = await ApplianceService.getUsageSummary(selectedPeriod)
 
       // Fetch price data
-      const priceResponse = await TradingService.getPriceForecast()
+      const priceResponse = await TradingService.getMarketPrices()
 
       // Fetch energy overview for summary data
       const overviewResponse = await EnergyService.getEnergyOverview(selectedPeriod)
@@ -74,22 +72,31 @@ const Analytics = () => {
         generation: Array.isArray(generationResponse.data) ? generationResponse.data : [],
         consumption: Array.isArray(consumptionResponse.data) ? consumptionResponse.data : [],
         battery: Array.isArray(batteryResponse.data) ? batteryResponse.data : [],
-        grid: Array.isArray(gridResponse.data) ? gridResponse.data : [],
+        grid: Array.isArray(gridResponse.data?.records) ? gridResponse.data.records : [],
       })
 
-      if (applianceUsageResponse.success && Array.isArray(applianceUsageResponse.data.appliances)) {
-        setApplianceUsage(applianceUsageResponse.data.appliances)
+      if (applianceUsageResponse?.success) {
+        setApplianceUsage(applianceUsageResponse.appliances || [])
       } else {
         setApplianceUsage([])
       }
 
-      if (priceResponse.success && Array.isArray(priceResponse.data.forecast)) {
-        setPriceData(priceResponse.data.forecast)
+      if (priceResponse?.success) {
+        // Format price data for the chart
+        const formattedPriceData = []
+        for (let hour = 0; hour < 24; hour++) {
+          formattedPriceData.push({
+            hour,
+            price: priceResponse.data?.current?.grid_import || 0,
+            p2p_price: priceResponse.data?.current?.p2p || 0,
+          })
+        }
+        setPriceData(formattedPriceData)
       } else {
         setPriceData([])
       }
 
-      if (overviewResponse.success) {
+      if (overviewResponse?.success) {
         setSummaryData(overviewResponse.data)
       }
 
@@ -97,7 +104,7 @@ const Analytics = () => {
     } catch (err) {
       console.error("Error fetching analytics data:", err)
       setError(err.response?.data?.msg || "Failed to fetch analytics data")
-      
+
       // Ensure data is initialized as empty arrays even on error
       setEnergyData({
         generation: [],
@@ -118,22 +125,22 @@ const Analytics = () => {
 
   // Format timestamp for charts
   const formatTimestamp = (timestamp) => {
-    if (!timestamp) return "";
+    if (!timestamp) return ""
     const date = new Date(timestamp)
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
 
   // Format date for charts
   const formatDate = (timestamp) => {
-    if (!timestamp) return "";
+    if (!timestamp) return ""
     const date = new Date(timestamp)
     return date.toLocaleDateString([], { month: "short", day: "numeric" })
   }
 
   // Prepare consumption data for charts
   const prepareConsumptionData = () => {
-    if (!Array.isArray(energyData.consumption)) return [];
-    
+    if (!Array.isArray(energyData.consumption)) return []
+
     return energyData.consumption.map((item) => ({
       time: formatTimestamp(item.timestamp),
       date: formatDate(item.timestamp),
@@ -144,8 +151,8 @@ const Analytics = () => {
 
   // Prepare generation data for charts
   const prepareGenerationData = () => {
-    if (!Array.isArray(energyData.generation)) return [];
-    
+    if (!Array.isArray(energyData.generation)) return []
+
     return energyData.generation.map((item) => ({
       time: formatTimestamp(item.timestamp),
       date: formatDate(item.timestamp),
@@ -157,8 +164,8 @@ const Analytics = () => {
 
   // Prepare battery data for charts
   const prepareBatteryData = () => {
-    if (!Array.isArray(energyData.battery)) return [];
-    
+    if (!Array.isArray(energyData.battery)) return []
+
     return energyData.battery.map((item) => ({
       time: formatTimestamp(item.timestamp),
       date: formatDate(item.timestamp),
@@ -171,21 +178,21 @@ const Analytics = () => {
   // Prepare grid data for charts
   const prepareGridData = () => {
     // Ensure grid data is an array before mapping
-    if (!Array.isArray(energyData.grid)) return [];
-  
+    if (!Array.isArray(energyData.grid)) return []
+
     return energyData.grid.map((item) => ({
       time: formatTimestamp(item.timestamp),
       date: formatDate(item.timestamp),
-      import: item.direction === "import" ? (item.amount || 0) : 0,
-      export: item.direction === "export" ? (item.amount || 0) : 0,
+      import: item.direction === "import" ? item.amount || 0 : 0,
+      export: item.direction === "export" ? item.amount || 0 : 0,
       timestamp: item.timestamp,
     }))
   }
 
   // Prepare appliance usage data for pie chart
   const prepareApplianceUsageData = () => {
-    if (!Array.isArray(applianceUsage)) return [];
-    
+    if (!Array.isArray(applianceUsage)) return []
+
     return applianceUsage.map((appliance) => ({
       name: appliance.name || "Unknown",
       value: appliance.energy_consumed || 0,
@@ -194,34 +201,34 @@ const Analytics = () => {
 
   // Calculate total consumption
   const calculateTotalConsumption = () => {
-    if (!Array.isArray(energyData.consumption)) return "0.00";
+    if (!Array.isArray(energyData.consumption)) return "0.00"
     return energyData.consumption.reduce((total, item) => total + (item.amount || 0), 0).toFixed(2)
   }
 
   // Calculate total generation
   const calculateTotalGeneration = () => {
-    if (!Array.isArray(energyData.generation)) return "0.00";
+    if (!Array.isArray(energyData.generation)) return "0.00"
     return energyData.generation.reduce((total, item) => total + (item.amount || 0), 0).toFixed(2)
   }
 
   // Calculate grid import/export
   const calculateGridUsage = () => {
     // Ensure grid is an array
-    const gridData = Array.isArray(energyData.grid) ? energyData.grid : [];
-    
+    const gridData = Array.isArray(energyData.grid) ? energyData.grid : []
+
     const imports = gridData
       .filter((item) => item && item.direction === "import")
-      .reduce((total, item) => total + (item.amount || 0), 0);
+      .reduce((total, item) => total + (item.amount || 0), 0)
 
     const exports = gridData
       .filter((item) => item && item.direction === "export")
-      .reduce((total, item) => total + (item.amount || 0), 0);
+      .reduce((total, item) => total + (item.amount || 0), 0)
 
     return {
       import: imports.toFixed(2),
       export: exports.toFixed(2),
       net: (exports - imports).toFixed(2),
-    };
+    }
   }
 
   // Export data as CSV
@@ -232,22 +239,22 @@ const Analytics = () => {
 
     switch (dataType) {
       case "consumption":
-        data = Array.isArray(energyData.consumption) ? energyData.consumption : [];
+        data = Array.isArray(energyData.consumption) ? energyData.consumption : []
         filename = `energy-consumption-${selectedPeriod}-${new Date().toISOString().split("T")[0]}.csv`
         headers = "Timestamp,Amount (kWh)\n"
         break
       case "generation":
-        data = Array.isArray(energyData.generation) ? energyData.generation : [];
+        data = Array.isArray(energyData.generation) ? energyData.generation : []
         filename = `energy-generation-${selectedPeriod}-${new Date().toISOString().split("T")[0]}.csv`
         headers = "Timestamp,Amount (kWh),Source\n"
         break
       case "battery":
-        data = Array.isArray(energyData.battery) ? energyData.battery : [];
+        data = Array.isArray(energyData.battery) ? energyData.battery : []
         filename = `battery-data-${selectedPeriod}-${new Date().toISOString().split("T")[0]}.csv`
         headers = "Timestamp,Percentage (%),Charge Rate (kW)\n"
         break
       case "grid":
-        data = Array.isArray(energyData.grid) ? energyData.grid : [];
+        data = Array.isArray(energyData.grid) ? energyData.grid : []
         filename = `grid-data-${selectedPeriod}-${new Date().toISOString().split("T")[0]}.csv`
         headers = "Timestamp,Amount (kWh),Direction\n"
         break
@@ -258,8 +265,8 @@ const Analytics = () => {
     let csvContent = headers
 
     data.forEach((item) => {
-      if (!item) return; // Skip null or undefined items
-      
+      if (!item) return // Skip null or undefined items
+
       let row = ""
       switch (dataType) {
         case "consumption":

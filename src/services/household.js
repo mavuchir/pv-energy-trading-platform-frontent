@@ -39,7 +39,10 @@ const HouseholdService = {
   createOrUpdateHousehold: async (config) => {
     try {
       const response = await api.post("/household/configuration", config)
-      return response.data
+      return {
+        success: true,
+        data: response.data,
+      }
     } catch (error) {
       console.error("Error creating/updating household configuration:", error)
       return {
@@ -98,7 +101,10 @@ const HouseholdService = {
   getDashboardData: async (period = "day") => {
     try {
       const response = await api.get(`/household/dashboard?period=${period}`)
-      return response.data
+      return {
+        success: true,
+        data: response.data,
+      }
     } catch (error) {
       console.error("Error fetching dashboard data:", error)
       return {
@@ -112,7 +118,10 @@ const HouseholdService = {
   getCurrentStatus: async () => {
     try {
       const response = await api.get("/household/status")
-      return response.data
+      return {
+        success: true,
+        data: response.data,
+      }
     } catch (error) {
       console.error("Error fetching current status:", error)
       return {
@@ -129,7 +138,10 @@ const HouseholdService = {
         duration_minutes: duration,
         interval_seconds: interval,
       })
-      return response.data
+      return {
+        success: true,
+        data: response.data,
+      }
     } catch (error) {
       console.error("Error simulating smart meter:", error)
       return {
@@ -141,4 +153,3 @@ const HouseholdService = {
 }
 
 export default HouseholdService
-

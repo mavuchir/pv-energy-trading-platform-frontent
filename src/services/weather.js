@@ -4,27 +4,37 @@ const WeatherService = {
   // Get current weather
   getCurrentWeather: async (latitude, longitude) => {
     try {
-      const response = await api.get(`/weather/current?lat=${latitude}&lon=${longitude}`)
-      return response.data
+      const url = latitude && longitude ? `/weather/current?lat=${latitude}&lon=${longitude}` : "/weather/current"
+
+      const response = await api.get(url)
+      return {
+        success: true,
+        data: response.data,
+      }
     } catch (error) {
       console.error("Error fetching current weather:", error)
       return {
         success: false,
         error: error.response?.data?.msg || "Failed to fetch current weather",
+        data: null,
       }
     }
   },
 
   // Get weather forecast
-  getWeatherForecast: async (latitude, longitude, days = 7) => {
+  getWeatherForecast: async (days = 7) => {
     try {
-      const response = await api.get(`/weather/forecast?lat=${latitude}&lon=${longitude}&days=${days}`)
-      return response.data
+      const response = await api.get(`/weather/forecast?days=${days}`)
+      return {
+        success: true,
+        data: response.data,
+      }
     } catch (error) {
       console.error("Error fetching weather forecast:", error)
       return {
         success: false,
         error: error.response?.data?.msg || "Failed to fetch weather forecast",
+        data: { forecast: [] },
       }
     }
   },
@@ -33,49 +43,78 @@ const WeatherService = {
   getSolarForecast: async (days = 3) => {
     try {
       const response = await api.get(`/weather/solar-forecast?days=${days}`)
-      return response.data
+      return {
+        success: true,
+        data: response.data,
+      }
     } catch (error) {
       console.error("Error fetching solar forecast:", error)
       return {
         success: false,
         error: error.response?.data?.msg || "Failed to fetch solar forecast",
+        data: { forecast: [] },
       }
     }
   },
 
   // Get solar irradiance data
-  getSolarIrradiance: async (latitude, longitude, date) => {
+  getSolarIrradiance: async (date) => {
     try {
       const formattedDate = date ? new Date(date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]
-      const response = await api.get(`/weather/irradiance?lat=${latitude}&lon=${longitude}&date=${formattedDate}`)
-      return response.data
+      const response = await api.get(`/weather/irradiance?date=${formattedDate}`)
+      return {
+        success: true,
+        data: response.data,
+      }
     } catch (error) {
       console.error("Error fetching solar irradiance:", error)
       return {
         success: false,
         error: error.response?.data?.msg || "Failed to fetch solar irradiance data",
+        data: null,
       }
     }
   },
 
   // Get historical weather data
-  getHistoricalWeather: async (latitude, longitude, startDate, endDate) => {
+  getHistoricalWeather: async (startDate, endDate) => {
     try {
       const formattedStartDate = new Date(startDate).toISOString().split("T")[0]
-      const formattedEndDate = new Date(endDate).toISOString().split("T")[0]
-      const response = await api.get(
-        `/weather/historical?lat=${latitude}&lon=${longitude}&start=${formattedStartDate}&end=${formattedEndDate}`,
-      )
-      return response.data
+      const formattedEndDate = endDate
+        ? new Date(endDate).toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0]
+      const response = await api.get(`/weather/historical?start=${formattedStartDate}&end=${formattedEndDate}`)
+      return {
+        success: true,
+        data: response.data,
+      }
     } catch (error) {
       console.error("Error fetching historical weather:", error)
       return {
         success: false,
         error: error.response?.data?.msg || "Failed to fetch historical weather data",
+        data: { historical: [] },
+      }
+    }
+  },
+
+  // Get temporary weather data (for configuration)
+  getTempWeatherData: async (latitude, longitude) => {
+    try {
+      const response = await api.post("/weather/temp-data", { latitude, longitude })
+      return {
+        success: true,
+        data: response.data,
+      }
+    } catch (error) {
+      console.error("Error fetching temporary weather data:", error)
+      return {
+        success: false,
+        error: error.response?.data?.msg || "Failed to fetch temporary weather data",
+        data: null,
       }
     }
   },
 }
 
 export default WeatherService
-

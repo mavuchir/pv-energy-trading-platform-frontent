@@ -70,6 +70,84 @@ const TradingService = {
       return { success: false, error: error.response?.data?.msg || "Failed to buy trade" }
     }
   },
+
+  // Cancel a trade
+  cancelTrade: async (tradeId) => {
+    try {
+      const response = await api.post(`/trade/cancel-trade/${tradeId}`)
+      return { success: true, data: response.data }
+    } catch (error) {
+      console.error("Error cancelling trade:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to cancel trade" }
+    }
+  },
+
+  // Rate a completed trade
+  rateTrade: async (tradeId, rating) => {
+    try {
+      const response = await api.post(`/trade/rate/${tradeId}`, { rating })
+      return { success: true, data: response.data }
+    } catch (error) {
+      console.error("Error rating trade:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to rate trade" }
+    }
+  },
+
+  // Get trade history
+  getTradeHistory: async (days = 30) => {
+    try {
+      const response = await api.get(`/trade/history?days=${days}`)
+      return { success: true, data: response.data }
+    } catch (error) {
+      console.error("Error fetching trade history:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch trade history" }
+    }
+  },
+
+  // Get account information including balance and transactions
+  getAccountInfo: async () => {
+    try {
+      const response = await api.get("/trade/account-info")
+      return { success: true, data: response.data }
+    } catch (error) {
+      console.error("Error fetching account info:", error)
+      return { success: false, error: error.response?.data?.msg || "Failed to fetch account information" }
+    }
+  },
+
+  // Get energy prices
+  getMarketPrices: async () => {
+    try {
+      const response = await api.get("/trade/market-price")
+      return {
+        success: true,
+        data: {
+          current: {
+            grid_import: response.data?.grid_import || 0,
+            grid_export: response.data?.grid_export || 0,
+            p2p: response.data?.p2p || 0,
+            timestamp: response.data?.timestamp || new Date().toISOString(),
+          },
+          historical: response.data?.historical || [],
+        },
+      }
+    } catch (error) {
+      console.error("Error fetching energy prices:", error)
+      return {
+        success: false,
+        error: error.response?.data?.msg || "Failed to fetch energy prices",
+        data: {
+          current: {
+            grid_import: 0,
+            grid_export: 0,
+            p2p: 0,
+            timestamp: new Date().toISOString(),
+          },
+          historical: [],
+        },
+      }
+    }
+  },
 }
 
 export default TradingService

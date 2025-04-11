@@ -5,28 +5,23 @@ const ApplianceService = {
   getAllAppliances: async () => {
     try {
       const response = await api.get("/appliance/all")
-      return response.data
+      return {
+        success: true,
+        appliances: response.data?.appliances || [],
+      }
     } catch (error) {
       console.error("Error fetching appliances:", error)
       return {
         success: false,
         error: error.response?.data?.msg || "Failed to fetch appliances",
+        appliances: [],
       }
     }
   },
 
   // Get appliances (alias for getAllAppliances for compatibility)
   getAppliances: async () => {
-    try {
-      const response = await api.get("/appliance/all")
-      return response.data
-    } catch (error) {
-      console.error("Error fetching appliances:", error)
-      return {
-        success: false,
-        error: error.response?.data?.msg || "Failed to fetch appliances",
-      }
-    }
+    return ApplianceService.getAllAppliances()
   },
 
   // Add a new appliance
@@ -47,9 +42,12 @@ const ApplianceService = {
         is_on: applianceData.is_on || false,
       }
 
-      console.log("Adding appliance with data:", payload)
       const response = await api.post("/appliance/add", payload)
-      return response.data
+      return {
+        success: true,
+        msg: "Appliance added successfully",
+        appliance: response.data?.appliance,
+      }
     } catch (error) {
       console.error("Error adding appliance:", error)
       return {
@@ -63,7 +61,11 @@ const ApplianceService = {
   updateAppliance: async (id, applianceData) => {
     try {
       const response = await api.put(`/appliance/${id}`, applianceData)
-      return response.data
+      return {
+        success: true,
+        msg: "Appliance updated successfully",
+        appliance: response.data?.appliance,
+      }
     } catch (error) {
       console.error("Error updating appliance:", error)
       return {
@@ -77,7 +79,10 @@ const ApplianceService = {
   deleteAppliance: async (id) => {
     try {
       const response = await api.delete(`/appliance/${id}`)
-      return response.data
+      return {
+        success: true,
+        msg: "Appliance deleted successfully",
+      }
     } catch (error) {
       console.error("Error deleting appliance:", error)
       return {
@@ -91,7 +96,11 @@ const ApplianceService = {
   toggleAppliance: async (id, status) => {
     try {
       const response = await api.put(`/appliance/${id}/status`, { status })
-      return response.data
+      return {
+        success: true,
+        msg: `Appliance ${status ? "turned on" : "turned off"} successfully`,
+        appliance: response.data?.appliance,
+      }
     } catch (error) {
       console.error("Error toggling appliance:", error)
       return {
@@ -105,26 +114,38 @@ const ApplianceService = {
   getApplianceUsage: async (id, period = "day") => {
     try {
       const response = await api.get(`/appliance/${id}/usage?period=${period}`)
-      return response.data
+      return {
+        success: true,
+        data: response.data,
+      }
     } catch (error) {
       console.error("Error fetching appliance usage:", error)
       return {
         success: false,
         error: error.response?.data?.msg || "Failed to fetch appliance usage",
+        data: {},
       }
     }
   },
 
-  // Get usage summary for all appliances
+  // Fix the getUsageSummary method to handle the response correctly
   getUsageSummary: async (period = "day") => {
     try {
       const response = await api.get(`/appliance/usage-summary?period=${period}`)
-      return response.data
+      return {
+        success: true,
+        data: response.data,
+        appliances: response.data?.appliances || [],
+        total_energy_consumed: response.data?.total_energy_consumed || 0,
+      }
     } catch (error) {
       console.error("Error fetching usage summary:", error)
       return {
         success: false,
         error: error.response?.data?.msg || "Failed to fetch usage summary",
+        data: {},
+        appliances: [],
+        total_energy_consumed: 0,
       }
     }
   },
@@ -133,7 +154,11 @@ const ApplianceService = {
   clearAllAppliances: async () => {
     try {
       const response = await api.delete("/appliance/clear-all")
-      return response.data
+      return {
+        success: true,
+        msg: "All appliances cleared successfully",
+        count: response.data?.count || 0,
+      }
     } catch (error) {
       console.error("Error clearing appliances:", error)
       return {
