@@ -1,17 +1,16 @@
-import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import AdminDashboard from '../components/Dashboard/AdminDashboard';
-import HouseholdDashboard from '../components/Dashboard/HouseholdDashboard';
+"use client"
+import { useAuth } from "../contexts/AuthContext"
+import AdminDashboard from "../components/Dashboard/AdminDashboard"
+import HouseholdDashboard from "../components/Dashboard/HouseholdDashboard"
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user } = useAuth()
 
   return (
-    <div>
-      {user.role === 'admin' ? <AdminDashboard /> : <HouseholdDashboard />}
+    <div className="min-h-screen bg-gray-50">
+      {user?.role === "admin" ? <AdminDashboard /> : <HouseholdDashboard />}
     </div>
-  );
-};
+  )
+}
 
-export default Dashboard;
-
+export default Dashboard

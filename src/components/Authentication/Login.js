@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import React, { useState, useEffect } from "react"
+import { Link, useNavigate, useLocation } from "react-router-dom"
 import {
   FaUser,
   FaLock,
@@ -13,8 +13,8 @@ import {
   FaMapMarkerAlt,
   FaCheckCircle,
 } from "react-icons/fa"
-import { useAuth } from "../../contexts/AuthContext"
 import { motion, AnimatePresence } from "framer-motion"
+import { useAuth } from "../../contexts/AuthContext"
 
 const Login = () => {
   // Login state
@@ -24,20 +24,20 @@ const Login = () => {
   // Register state
   const [email, setEmail] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [fullName, setFullName] = useState("")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
   const [phone, setPhone] = useState("")
   const [location, setLocation] = useState("")
 
   const [formError, setFormError] = useState("")
   const [formSuccess, setFormSuccess] = useState("")
   const [isLoginMode, setIsLoginMode] = useState(true)
-  const { login, register, loading, error, successMessage, clearMessages } = useAuth()
+  const { login, register, loading, clearMessages } = useAuth()
   const navigate = useNavigate()
+  const locationHook = useLocation()
 
   useEffect(() => {
-    if (clearMessages) {
-      clearMessages()
-    }
+    clearMessages()
     setFormError("")
     setFormSuccess("")
   }, [clearMessages, isLoginMode])
@@ -48,23 +48,14 @@ const Login = () => {
     setFormSuccess("")
 
     try {
-      // Use the login function from AuthContext
-      const userData = await login(username, password)
-
-      if (userData) {
-        setFormSuccess("Login successful! Redirecting...")
-
-        // Check if user has completed configuration
-        const hasCompletedConfig = userData.is_configured || false
-
-        // Redirect based on configuration status
-        setTimeout(() => {
-          navigate(hasCompletedConfig ? "/dashboard" : "/configuration")
-        }, 1000)
-      }
+      const from = locationHook.state?.from?.pathname || "/dashboard"
+      await login(username, password)
+      setFormSuccess("Login successful! Redirecting...")
+      setTimeout(() => {
+        navigate(from)
+      }, 1000)
     } catch (err) {
-      console.error("Login error:", err)
-      const errorMessage = err.response?.data?.msg || err.message || "Login failed. Please try again."
+      const errorMessage = err.message || "Login failed. Please try again."
       setFormError(errorMessage)
     }
   }
@@ -79,49 +70,31 @@ const Login = () => {
       return
     }
 
+    const userData = {
+      username,
+      email,
+      password,
+      first_name: firstName,
+      last_name: lastName,
+      phone,
+      location,
+      role: "household", // Default role
+    }
+
     try {
-      // Create a user data object with all fields
-      const userData = {
-        username,
-        email,
-        password,
-        full_name: fullName,
-        phone,
-        location,
-        role: "household", // Default role
-      }
-
-      console.log("Submitting registration form with data:", {
-        ...userData,
-        password: "********", // Don't log the actual password
-      })
-
-      const response = await register(userData)
-      console.log("Registration successful, response:", response)
-
-      setFormSuccess("Registration successful! You can now log in.")
-
-      // Clear registration fields and switch to login mode after a delay
+      await register(userData)
+      setFormSuccess("Registration successful! Redirecting...")
       setTimeout(() => {
-        setEmail("")
-        setFullName("")
-        setPhone("")
-        setLocation("")
-        setPassword("")
-        setConfirmPassword("")
-        setIsLoginMode(true)
-      }, 2000)
-    } catch (error) {
-      console.error("Registration failed in component:", error)
-      const errorMessage = error.response?.data?.msg || error.message || "Registration failed. Please try again."
+        navigate("/dashboard")
+      }, 1000)
+    } catch (err) {
+      const errorMessage = err.message || "Registration failed. Please try again."
       setFormError(errorMessage)
     }
   }
 
   const toggleMode = () => {
     setIsLoginMode(!isLoginMode)
-    setFormError("")
-    setFormSuccess("")
   }
 
   return (
@@ -143,24 +116,24 @@ const Login = () => {
                   <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">Sign in to Account</h2>
 
                   {/* Error message */}
-                  {(error || formError) && (
+                  {formError && (
                     <div
                       className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6 flex items-start"
                       role="alert"
                     >
                       <FaExclamationTriangle className="h-5 w-5 mr-2 mt-0.5" />
-                      <span className="block sm:inline">{formError || error}</span>
+                      <span className="block sm:inline">{formError}</span>
                     </div>
                   )}
 
                   {/* Success message */}
-                  {(successMessage || formSuccess) && (
+                  {formSuccess && (
                     <div
                       className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-6 flex items-start"
                       role="alert"
                     >
                       <FaCheckCircle className="h-5 w-5 mr-2 mt-0.5" />
-                      <span className="block sm:inline">{formSuccess || successMessage}</span>
+                      <span className="block sm:inline">{formSuccess}</span>
                     </div>
                   )}
 
@@ -188,7 +161,7 @@ const Login = () => {
                       />
                     </div>
                     <div className="flex justify-end">
-                      <Link to="/forgot-password" className="text-sm text-teal-600 hover:underline">
+                      <Link to="/auth/forgot-password" className="text-sm text-teal-600 hover:underline">
                         Forgot your password?
                       </Link>
                     </div>
@@ -220,24 +193,24 @@ const Login = () => {
                   <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">Create Account</h2>
 
                   {/* Error message */}
-                  {(error || formError) && (
+                  {formError && (
                     <div
                       className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6 flex items-start"
                       role="alert"
                     >
                       <FaExclamationTriangle className="h-5 w-5 mr-2 mt-0.5" />
-                      <span className="block sm:inline">{formError || error}</span>
+                      <span className="block sm:inline">{formError}</span>
                     </div>
                   )}
 
                   {/* Success message */}
-                  {(successMessage || formSuccess) && (
+                  {formSuccess && (
                     <div
                       className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-6 flex items-start"
                       role="alert"
                     >
                       <FaCheckCircle className="h-5 w-5 mr-2 mt-0.5" />
-                      <span className="block sm:inline">{formSuccess || successMessage}</span>
+                      <span className="block sm:inline">{formSuccess}</span>
                     </div>
                   )}
 
@@ -268,10 +241,20 @@ const Login = () => {
                       <FaIdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                       <input
                         type="text"
-                        placeholder="Full Name"
+                        placeholder="First Name"
                         className="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                      />
+                    </div>
+                    <div className="relative">
+                      <FaIdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Last Name"
+                        className="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
                       />
                     </div>
                     <div className="relative">
@@ -288,7 +271,7 @@ const Login = () => {
                       <FaMapMarkerAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                       <input
                         type="text"
-                        placeholder="Location (e.g., Harare)"
+                        placeholder="Location (e.g., City)"
                         className="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
                         value={location}
                         onChange={(e) => setLocation(e.target.value)}
@@ -357,4 +340,3 @@ const Login = () => {
 }
 
 export default Login
-

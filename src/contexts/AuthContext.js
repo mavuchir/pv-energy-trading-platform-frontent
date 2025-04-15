@@ -1,240 +1,212 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect } from "react"
+import React, { createContext, useState, useEffect, useCallback } from "react"
 import api from "../services/api"
 
-const AuthContext = createContext()
-
-export const useAuth = () => useContext(AuthContext)
+// Create the auth context
+export const AuthContext = createContext()
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [successMessage, setSuccessMessage] = useState("")
-  const [isConfigured, setIsConfigured] = useState(false)
+  const [successMessage, setSuccessMessage] = useState(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
-  // Set up axios defaults
-  useEffect(() => {
-    const token = localStorage.getItem("token")
-    if (token) {
-      api.defaults.headers.common["Authorization"] = `Bearer ${token}`
-    }
+  // Clear error and success messages
+  const clearMessages = useCallback(() => {
+    setError(null)
+    setSuccessMessage(null)
   }, [])
 
+  // Check if token exists and validate it
   useEffect(() => {
-    const token = localStorage.getItem("token")
-    if (token) {
-      fetchUser()
-    } else {
-      setLoading(false)
-    }
-  }, [])
+    const checkAuth = async () => {
+      const token = localStorage.getItem("auth_token")
 
-  const fetchUser = async () => {
-    try {
-      console.log("Fetching current user data...")
-      const response = await api.get("/auth/me")
-      console.log("User data received:", response.data)
-      setUser(response.data)
-      setIsConfigured(response.data.is_configured || false)
-      setError(null)
-    } catch (error) {
-      console.error("Error fetching user:", error)
-
-      // Check for CORS errors
-      if (error.message && error.message.includes("Network Error")) {
-        setError("Network error. This might be a CORS issue.")
-        // Don't logout on network errors
-      } else if (error.response?.status === 401) {
-        console.log("Authentication error, but not logging out automatically")
-        setError("Session may have expired. Please try refreshing the page.")
-        // Don't automatically logout - let the user decide
-      } else {
-        setError("Failed to load user data. Please try again.")
+      if (token) {
+        try {
+          // Fetch user profile
+          const response = await api.get("/auth/profile")
+          setUser(response.data)
+          setIsAuthenticated(true)
+        } catch (err) {
+          console.error("Auth validation error:", err)
+          localStorage.removeItem("auth_token")
+        }
       }
-    } finally {
+
       setLoading(false)
     }
-  }
 
+    checkAuth()
+  }, [])
+
+  // Login function
   const login = async (username, password) => {
+    clearMessages()
     setLoading(true)
-    setError(null)
+
     try {
-      console.log("Attempting login with username:", username)
-      const response = await api.post("/auth/login", { username, password })
-      console.log("Login response:", response.data)
-
-      // Store the token and set it in axios defaults
-      const token = response.data.token
-      localStorage.setItem("token", token)
-      api.defaults.headers.common["Authorization"] = `Bearer ${token}`
-
-      setUser(response.data.user)
-      setIsConfigured(response.data.user.is_configured || false)
-      setSuccessMessage("Login successful!")
-      return response.data.user
-    } catch (error) {
-      console.error("Login error:", error)
-
-      // Check for CORS errors
-      if (error.message && error.message.includes("Network Error")) {
-        setError("Network error. This might be a CORS issue.")
-      } else if (error.response?.data?.msg) {
-        setError(error.response.data.msg)
-      } else {
-        setError("Login failed. Please try again.")
-      }
-      throw error
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const register = async (userData) => {
-    setLoading(true)
-    setError(null)
-    try {
-      console.log("Sending registration data:", {
-        ...userData,
-        password: "[REDACTED]",
+      const response = await api.post("/auth/login", {
+        username,
+        password,
       })
 
+      const { access_token, user } = response.data
+
+      // Save token to localStorage
+      localStorage.setItem("auth_token", access_token)
+
+      setUser(user)
+      setIsAuthenticated(true)
+      setSuccessMessage("Login successful!")
+      setLoading(false)
+
+      return user
+    } catch (err) {
+      setLoading(false)
+      const errorMessage = err.response?.data?.msg || "Login failed. Please check your credentials."
+      setError(errorMessage)
+      throw new Error(errorMessage)
+    }
+  }
+
+  // Register function
+  const register = async (userData) => {
+    clearMessages()
+    setLoading(true)
+
+    try {
       const response = await api.post("/auth/register", userData)
-      console.log("Registration response:", response.status)
 
+      const { access_token, user } = response.data
+
+      // Save token to localStorage
+      localStorage.setItem("auth_token", access_token)
+
+      setUser(user)
+      setIsAuthenticated(true)
       setSuccessMessage("Registration successful!")
-      return response.data
-    } catch (error) {
-      console.error("Registration error:", error)
+      setLoading(false)
 
-      // Detailed error logging
-      if (error.message) {
-        console.error("Error message:", error.message)
-      }
-      if (error.response) {
-        console.error("Response status:", error.response.status)
-        console.error("Response data:", error.response.data)
-      }
+      return user
+    } catch (err) {
+      setLoading(false)
+      const errorMessage = err.response?.data?.msg || "Registration failed. Please try again."
+      setError(errorMessage)
+      throw new Error(errorMessage)
+    }
+  }
 
-      // Check for CORS errors
-      if (error.message && error.message.includes("Network Error")) {
-        const errorMessage = "Network error. This might be a CORS issue."
-        setError(errorMessage)
-        throw new Error(errorMessage)
-      } else {
-        const errorMessage = error.response?.data?.msg || error.response?.data?.message || "Registration failed"
-        setError(errorMessage)
-        throw new Error(errorMessage)
+  // Logout function
+  const logout = async () => {
+    clearMessages()
+    setLoading(true)
+
+    try {
+      // Call logout endpoint if available
+      if (isAuthenticated) {
+        await api.post("/auth/logout")
       }
+    } catch (err) {
+      console.error("Logout error:", err)
     } finally {
+      // Remove token from localStorage
+      localStorage.removeItem("auth_token")
+      setUser(null)
+      setIsAuthenticated(false)
       setLoading(false)
     }
   }
 
-  const logout = () => {
-    localStorage.removeItem("token")
-    delete api.defaults.headers.common["Authorization"]
-    setUser(null)
-    setIsConfigured(false)
-    setSuccessMessage("")
-    setError(null)
-  }
-
-  const updateProfile = async (userData) => {
+  // Update user profile
+  const updateProfile = async (profileData) => {
+    clearMessages()
     setLoading(true)
-    setError(null)
+
     try {
-      const response = await api.put("/auth/update-profile", userData)
-      setUser(response.data)
+      const response = await api.put("/auth/profile", profileData)
+
+      setUser(response.data.user)
       setSuccessMessage("Profile updated successfully!")
-      return response.data
-    } catch (error) {
-      console.error("Profile update error:", error)
-
-      // Check for CORS errors
-      if (error.message && error.message.includes("Network Error")) {
-        setError("Network error. This might be a CORS issue.")
-      } else if (error.response && error.response.data && error.response.data.msg) {
-        setError(error.response.data.msg)
-      } else {
-        setError("Profile update failed. Please try again.")
-      }
-      throw error
-    } finally {
       setLoading(false)
+
+      return response.data.user
+    } catch (err) {
+      setLoading(false)
+      const errorMessage = err.response?.data?.msg || "Failed to update profile. Please try again."
+      setError(errorMessage)
+      throw new Error(errorMessage)
     }
   }
 
-  const configureHousehold = async (configData) => {
+  // Change password
+  const changePassword = async (currentPassword, newPassword) => {
+    clearMessages()
     setLoading(true)
-    setError(null)
+
     try {
-      // Ensure token is set in headers
-      const token = localStorage.getItem("token")
-      if (!token) {
-        throw new Error("Authentication token is missing. Please log in again.")
-      }
+      await api.put("/auth/change-password", {
+        current_password: currentPassword,
+        new_password: newPassword,
+      })
 
-      // Double-check that the token is in the headers
-      api.defaults.headers.common["Authorization"] = `Bearer ${token}`
-
-      console.log("Sending configuration with token:", token.substring(0, 10) + "...")
-
-      const response = await api.post("/household/configuration", configData)
-      setIsConfigured(true)
-
-      // Update user data if returned
-      if (response.data.user) {
-        setUser(response.data.user)
-      }
-
-      setSuccessMessage("Household configured successfully!")
-      return response.data
-    } catch (error) {
-      console.error("Configuration error:", error)
-
-      // Check for auth errors
-      if (error.response?.status === 401) {
-        setError("Authentication failed. Please log in again.")
-        // Force logout on auth failure
-        logout()
-      } else if (error.message && error.message.includes("Network Error")) {
-        setError("Network error. This might be a CORS issue.")
-      } else if (error.response && error.response.data && error.response.data.msg) {
-        setError(error.response.data.msg)
-      } else {
-        setError("Configuration failed. Please try again.")
-      }
-      throw error
-    } finally {
+      setSuccessMessage("Password changed successfully!")
       setLoading(false)
+    } catch (err) {
+      setLoading(false)
+      const errorMessage = err.response?.data?.msg || "Failed to change password. Please try again."
+      setError(errorMessage)
+      throw new Error(errorMessage)
     }
   }
 
-  const clearMessages = () => {
-    setError(null)
-    setSuccessMessage("")
+  // Request password reset
+  const requestPasswordReset = async (email) => {
+    clearMessages()
+    setLoading(true)
+
+    try {
+      await api.post("/auth/forgot-password", { email })
+
+      setSuccessMessage("Password reset instructions have been sent to your email.")
+      setLoading(false)
+    } catch (err) {
+      setLoading(false)
+      const errorMessage = err.response?.data?.msg || "Failed to send password reset. Please try again."
+      setError(errorMessage)
+      throw new Error(errorMessage)
+    }
   }
 
-  const value = {
-    user,
-    loading,
-    error,
-    successMessage,
-    isConfigured,
-    login,
-    register,
-    logout,
-    updateProfile,
-    configureHousehold,
-    clearMessages,
-    setUser,
-  }
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        error,
+        successMessage,
+        isAuthenticated,
+        login,
+        register,
+        logout,
+        updateProfile,
+        changePassword,
+        requestPasswordReset,
+        clearMessages,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
-export default AuthProvider
-
+// Custom hook to use the auth context
+export const useAuth = () => {
+  const context = React.useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider")
+  }
+  return context
+}

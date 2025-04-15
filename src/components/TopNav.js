@@ -33,8 +33,8 @@ const TopNav = () => {
           <div className="flex items-center space-x-4">
             <Link to="/about" className="text-gray-600 hover:text-teal-600">About</Link>
             <Link to="/contact" className="text-gray-600 hover:text-teal-600">Contact</Link>
-            <Link to="/login" className="bg-teal-600 text-white px-4 py-2 rounded-full hover:bg-teal-700 transition duration-300">Login</Link>
-            <Link to="/register" className="bg-white text-teal-600 px-4 py-2 rounded-full border border-teal-600 hover:bg-teal-50 transition duration-300">Sign Up</Link>
+            <Link to="auth/login" className="bg-teal-600 text-white px-4 py-2 rounded-full hover:bg-teal-700 transition duration-300">Login</Link>
+            <Link to="auth/login" className="bg-white text-teal-600 px-4 py-2 rounded-full border border-teal-600 hover:bg-teal-50 transition duration-300">Sign Up</Link>
           </div>
         </div>
       </div>

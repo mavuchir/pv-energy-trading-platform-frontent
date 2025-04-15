@@ -1,212 +1,164 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { FaUsers, FaHome, FaSolarPanel, FaBatteryFull, FaSync } from "react-icons/fa"
+import AdminService from "../../services/AdminService"
+import DashboardHeader from "./DashboardHeader"
+import EnergyOverviewCard from "../widgets/EnergyOverviewCard"
+import AdminUserWidget from "../widgets/AdminUserWidget"
+import AdminCommunityWidget from "../widgets/AdminCommunityWidget"
+import AdminAuditLogWidget from "../widgets/AdminAuditLogWidget"
+import AdminMarketPriceWidget from "../widgets/AdminMarketPriceWidget"
 import { useAuth } from "../../contexts/AuthContext"
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card"
-import { Button } from "../ui/button"
-import { Input } from "../ui/Input"
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-} from "recharts"
-import { Users, Battery, Zap, DollarSign, AlertTriangle } from "lucide-react"
 
 const AdminDashboard = () => {
   const { user } = useAuth()
-  const [systemData, setSystemData] = useState(null)
-  const [selectedPeriod, setSelectedPeriod] = useState("today")
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [dashboardData, setDashboardData] = useState(null)
 
   useEffect(() => {
-    // Simulating API call to fetch system data
-    const fetchSystemData = async () => {
-      // In a real application, this would be an API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setSystemData({
-        totalHouseholds: 1234,
-        totalEnergyGenerated: 50000,
-        totalEnergyTraded: 25000,
-        systemRevenue: 10000,
-        activeTrades: 50,
-      })
+    const fetchAdminDashboard = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Fetch admin dashboard data
+        const data = await AdminService.getDashboard()
+        setDashboardData(data)
+      } catch (err) {
+        console.error("Error fetching admin dashboard data:", err)
+        setError("Failed to load admin dashboard data. Please try again.")
+      } finally {
+        setLoading(false)
+      }
     }
 
-    fetchSystemData()
+    fetchAdminDashboard()
   }, [])
 
-  // Generate mock chart data
-  const generateChartData = () => {
-    const data = []
-    for (let i = 0; i < 7; i++) {
-      data.push({
-        day: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i],
-        generation: Math.random() * 10000,
-        consumption: Math.random() * 8000,
-        trading: Math.random() * 5000,
-      })
+  const handleRefresh = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // Refresh admin dashboard data
+      const data = await AdminService.getDashboard()
+      setDashboardData(data)
+    } catch (err) {
+      console.error("Error refreshing admin dashboard data:", err)
+      setError("Failed to refresh admin dashboard data. Please try again.")
+    } finally {
+      setLoading(false)
     }
-    return data
   }
 
-  const chartData = generateChartData()
-
-  if (!systemData) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>
+  if (loading && !dashboardData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-teal-600"></div>
+      </div>
+    )
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+    <>
+      <DashboardHeader />
 
-      {/* System Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Households</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{systemData.totalHouseholds}</div>
-            <p className="text-xs text-muted-foreground">+2.5% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Energy Generated</CardTitle>
-            <Battery className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{systemData.totalEnergyGenerated.toLocaleString()} kWh</div>
-            <p className="text-xs text-muted-foreground">+12.3% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Energy Traded</CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{systemData.totalEnergyTraded.toLocaleString()} kWh</div>
-            <p className="text-xs text-muted-foreground">+8.1% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">System Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${systemData.systemRevenue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">+15.2% from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Trades</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{systemData.activeTrades}</div>
-            <p className="text-xs text-muted-foreground">-3.5% from yesterday</p>
-          </CardContent>
-        </Card>
-      </div>
+      <div className="container mx-auto px-4 py-6">
+        {/* Welcome Section */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">
+            Welcome back, {user?.full_name || user?.username || "Admin"}!
+          </h1>
+          <p className="text-gray-600">System Administration Dashboard</p>
+        </div>
 
-      {/* Time Period Selector */}
-      <div className="flex space-x-4 mb-6">
-        {["Today", "This Week", "This Month", "This Year"].map((period) => (
-          <Button
-            key={period}
-            variant={selectedPeriod === period.toLowerCase() ? "default" : "outline"}
-            onClick={() => setSelectedPeriod(period.toLowerCase())}
-          >
-            {period}
-          </Button>
-        ))}
-      </div>
-
-      {/* System Performance Chart */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>System Performance</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="day" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="generation" stroke="#8884d8" name="Generation" />
-                <Line type="monotone" dataKey="consumption" stroke="#82ca9d" name="Consumption" />
-                <Line type="monotone" dataKey="trading" stroke="#ffc658" name="Trading" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Energy Distribution by Household Type */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Energy Distribution by Household Type</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={[
-                  { type: "Residential", generation: 30000, consumption: 25000 },
-                  { type: "Commercial", generation: 15000, consumption: 18000 },
-                  { type: "Industrial", generation: 5000, consumption: 7000 },
-                ]}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="type" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="generation" fill="#8884d8" name="Generation" />
-                <Bar dataKey="consumption" fill="#82ca9d" name="Consumption" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h3 className="text-lg font-semibold mb-2">Adjust Energy Pricing</h3>
-              <div className="flex items-center space-x-2">
-                <Input type="number" placeholder="Set base price per kWh" />
-                <Button>Update</Button>
+        {error && (
+          <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg
+                  className="h-5 w-5 text-red-400"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
               </div>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold mb-2">System Maintenance</h3>
-              <Button variant="outline">Schedule Maintenance</Button>
-            </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        )}
+
+        {/* Controls */}
+        <div className="flex justify-end mb-6">
+          <button
+            onClick={handleRefresh}
+            className="flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+          >
+            <FaSync className={`mr-2 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
+
+        {/* System Overview Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+          <EnergyOverviewCard
+            title="Total Users"
+            value={dashboardData?.user_stats?.total || 0}
+            unit=""
+            change={null}
+            icon={<FaUsers className="text-blue-500" />}
+            color="blue"
+          />
+          <EnergyOverviewCard
+            title="Total Communities"
+            value={dashboardData?.community_stats?.total || 0}
+            unit=""
+            change={null}
+            icon={<FaHome className="text-green-500" />}
+            color="green"
+          />
+          <EnergyOverviewCard
+            title="Total Solar Capacity"
+            value={dashboardData?.system_stats?.total_solar_capacity || 0}
+            unit="kW"
+            change={null}
+            icon={<FaSolarPanel className="text-yellow-500" />}
+            color="yellow"
+          />
+          <EnergyOverviewCard
+            title="Total Battery Capacity"
+            value={dashboardData?.system_stats?.total_battery_capacity || 0}
+            unit="kWh"
+            change={null}
+            icon={<FaBatteryFull className="text-purple-500" />}
+            color="purple"
+          />
+        </div>
+
+        {/* Widgets Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <AdminUserWidget userStats={dashboardData?.user_stats} />
+          <AdminCommunityWidget communityStats={dashboardData?.community_stats} />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <AdminMarketPriceWidget currentPrice={dashboardData?.current_market_price} />
+          <AdminAuditLogWidget recentLogs={dashboardData?.recent_logs} />
+        </div>
+      </div>
+    </>
   )
 }
 
 export default AdminDashboard
-

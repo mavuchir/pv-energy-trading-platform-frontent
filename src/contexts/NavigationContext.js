@@ -1,28 +1,43 @@
-import { createContext, useContext, useState } from "react"
+"use client"
 
-const NavigationContext = createContext(undefined)
+import { createContext, useState, useContext } from "react"
 
-export const useNavigation = () => {
-  const context = useContext(NavigationContext)
-  if (!context) {
-    throw new Error("useNavigation must be used within NavigationProvider")
-  }
-  return context
-}
+// Create the navigation context
+export const NavigationContext = createContext()
 
 export const NavigationProvider = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isScrollingDown, setIsScrollingDown] = useState(false)
+  const [currentSection, setCurrentSection] = useState("dashboard")
+  const [breadcrumbs, setBreadcrumbs] = useState([])
 
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen)
+  // Toggle sidebar
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen)
+  }
+
+  // Update breadcrumbs
+  const updateBreadcrumbs = (newBreadcrumbs) => {
+    setBreadcrumbs(newBreadcrumbs)
+  }
+
+  // Set current section
+  const navigateToSection = (section) => {
+    setCurrentSection(section)
+  }
 
   return (
     <NavigationContext.Provider
       value={{
         isSidebarOpen,
+        setIsSidebarOpen,
         toggleSidebar,
         isScrollingDown,
         setIsScrollingDown,
+        currentSection,
+        navigateToSection,
+        breadcrumbs,
+        updateBreadcrumbs,
       }}
     >
       {children}
@@ -30,3 +45,11 @@ export const NavigationProvider = ({ children }) => {
   )
 }
 
+// Custom hook to use the navigation context
+export const useNavigation = () => {
+  const context = useContext(NavigationContext)
+  if (context === undefined) {
+    throw new Error("useNavigation must be used within a NavigationProvider")
+  }
+  return context
+}

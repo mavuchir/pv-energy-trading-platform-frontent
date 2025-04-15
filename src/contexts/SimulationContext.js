@@ -1,153 +1,139 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+"use client"
 
-const SimulationContext = createContext();
+import { createContext, useState, useContext, useCallback } from "react"
+import axios from "axios"
 
-export function useSimulation() {
-  return useContext(SimulationContext);
-}
+// Create the simulation context
+export const SimulationContext = createContext()
 
-export function SimulationProvider({ children }) {
-  const [simulationData, setSimulationData] = useState({
-    solarSystem: {
-      panelCount: 10,
-      panelEfficiency: 0.2,
-      batterySize: 10,
-      inverterSize: 5,
-    },
-    weatherData: null,
-    householdSetup: {
-      occupants: 4,
-      squareMeters: 150,
-    },
-    applianceStatus: {
-      lights: false,
-      tv: false,
-      waterHeater: false,
-      airConditioner: false,
-    },
-    energyProduction: 0,
-    energyConsumption: 0,
-    availableEnergy: 0,
-    batteryCharge: 0,
-    recentTrades: [],
-  });
+// API URL from environment variable
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000"
 
-  useEffect(() => {
-    // Initial weather data
-    updateWeatherData(generateWeatherData());
+export const SimulationProvider = ({ children }) => {
+  const [isSimulationRunning, setIsSimulationRunning] = useState(false)
+  const [simulationSpeed, setSimulationSpeed] = useState(1)
+  const [simulationTime, setSimulationTime] = useState(new Date())
+  const [simulationWeather, setSimulationWeather] = useState({
+    temperature: 25,
+    cloudCover: 30,
+    windSpeed: 5,
+    precipitation: 0,
+    condition: "sunny",
+  })
+  const [simulationError, setSimulationError] = useState(null)
+  const [simulationSuccess, setSimulationSuccess] = useState(null)
 
-    // Update weather and recalculate energy every minute (for demonstration purposes)
-    const interval = setInterval(() => {
-      updateWeatherData(generateWeatherData());
-      recalculateEnergy();
-    }, 60000);
+  // Clear messages
+  const clearMessages = useCallback(() => {
+    setSimulationError(null)
+    setSimulationSuccess(null)
+  }, [])
 
-    return () => clearInterval(interval);
-  }, []);
+  // Start simulation
+  const startSimulation = async (params = {}) => {
+    clearMessages()
+    try {
+      setIsSimulationRunning(true)
 
-  useEffect(() => {
-    recalculateEnergy();
-  }, [simulationData.solarSystem, simulationData.weatherData, simulationData.householdSetup, simulationData.applianceStatus]);
+      // Set default parameters if not provided
+      const simulationParams = {
+        speed: params.speed || simulationSpeed,
+        weather: params.weather || simulationWeather,
+        start_time: params.startTime || new Date().toISOString(),
+        ...params,
+      }
 
-  const generateWeatherData = () => {
-    return {
-      temperature: Math.round(Math.random() * 30 + 10), // 10-40°C
-      solarIrradiance: Math.round(Math.random() * 800 + 200), // 200-1000 W/m²
-      cloudCover: Math.round(Math.random() * 100), // 0-100%
-      windSpeed: Math.round(Math.random() * 20), // 0-20 km/h
-    };
-  };
+      const response = await axios.post(`${API_URL}/simulation/start`, simulationParams)
 
-  const calculateSolarProduction = (solarSystem, weatherData) => {
-    if (!solarSystem || !weatherData) return 0;
-    const baseProduction = solarSystem.panelCount * solarSystem.panelEfficiency * 1000; // Assuming 1000W/m² standard test condition
-    const weatherFactor = (100 - weatherData.cloudCover) / 100;
-    const rawProduction = +(baseProduction * weatherFactor * (weatherData.solarIrradiance / 1000)).toFixed(2);
-    return Math.min(rawProduction, solarSystem.inverterSize * 1000); // Production limited by inverter size
-  };
+      setSimulationSuccess("Simulation started successfully")
+      return response.data
+    } catch (err) {
+      console.error("Simulation start error:", err)
+      setSimulationError(err.response?.data?.msg || "Failed to start simulation")
+      setIsSimulationRunning(false)
+      throw err
+    }
+  }
 
-  const calculateEnergyConsumption = (householdSetup, applianceStatus) => {
-    if (!householdSetup) return 0;
-    const baseConsumption = householdSetup.occupants * 0.5 + householdSetup.squareMeters * 0.01;
-    const applianceConsumption = Object.entries(applianceStatus).reduce((total, [appliance, isOn]) => {
-      const consumptionRates = {
-        lights: 0.1,
-        tv: 0.15,
-        waterHeater: 2.0,
-        airConditioner: 1.5,
-      };
-      return total + (isOn ? consumptionRates[appliance] : 0);
-    }, 0);
-    return +(baseConsumption + applianceConsumption).toFixed(2);
-  };
+  // Stop simulation
+  const stopSimulation = async () => {
+    clearMessages()
+    try {
+      const response = await axios.post(`${API_URL}/simulation/stop`)
+      setIsSimulationRunning(false)
+      setSimulationSuccess("Simulation stopped successfully")
+      return response.data
+    } catch (err) {
+      console.error("Simulation stop error:", err)
+      setSimulationError(err.response?.data?.msg || "Failed to stop simulation")
+      throw err
+    }
+  }
 
-  const recalculateEnergy = () => {
-    const production = calculateSolarProduction(simulationData.solarSystem, simulationData.weatherData);
-    const consumption = calculateEnergyConsumption(simulationData.householdSetup, simulationData.applianceStatus);
-    const energyDelta = production - consumption;
-    let newBatteryCharge = simulationData.batteryCharge + energyDelta;
-    newBatteryCharge = Math.max(0, Math.min(newBatteryCharge, simulationData.solarSystem.batterySize * 1000));
+  // Update simulation parameters
+  const updateSimulation = async (params) => {
+    clearMessages()
+    try {
+      const response = await axios.put(`${API_URL}/simulation/update`, params)
 
-    setSimulationData((prevData) => ({
-      ...prevData,
-      energyProduction: production,
-      energyConsumption: consumption,
-      availableEnergy: newBatteryCharge / 1000, // Convert to kWh
-      batteryCharge: newBatteryCharge,
-    }));
-  };
+      if (params.speed) {
+        setSimulationSpeed(params.speed)
+      }
 
-  const updateSolarSystem = (solarSystemData) => {
-    setSimulationData((prevData) => ({
-      ...prevData,
-      solarSystem: solarSystemData,
-    }));
-  };
+      if (params.weather) {
+        setSimulationWeather((prev) => ({ ...prev, ...params.weather }))
+      }
 
-  const updateWeatherData = (weatherData) => {
-    setSimulationData((prevData) => ({
-      ...prevData,
-      weatherData,
-    }));
-  };
+      setSimulationSuccess("Simulation updated successfully")
+      return response.data
+    } catch (err) {
+      console.error("Simulation update error:", err)
+      setSimulationError(err.response?.data?.msg || "Failed to update simulation")
+      throw err
+    }
+  }
 
-  const updateHouseholdSimulation = (householdData) => {
-    setSimulationData((prevData) => ({
-      ...prevData,
-      householdSetup: householdData,
-    }));
-  };
-
-  const updateApplianceStatus = (appliance, status) => {
-    setSimulationData((prevData) => ({
-      ...prevData,
-      applianceStatus: {
-        ...prevData.applianceStatus,
-        [appliance]: status,
-      },
-    }));
-  };
-
-  const createTrade = (tradeData) => {
-    setSimulationData((prevData) => ({
-      ...prevData,
-      recentTrades: [tradeData, ...prevData.recentTrades.slice(0, 9)],
-      availableEnergy: Math.max(0, prevData.availableEnergy - tradeData.amount),
-    }));
-  };
-
-  const value = {
-    simulationData,
-    updateSolarSystem,
-    updateWeatherData,
-    updateHouseholdSimulation,
-    updateApplianceStatus,
-    createTrade,
-  };
+  // Get simulation status
+  const getSimulationStatus = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/simulation/status`)
+      setIsSimulationRunning(response.data.is_running)
+      setSimulationSpeed(response.data.speed)
+      setSimulationTime(new Date(response.data.current_time))
+      setSimulationWeather(response.data.weather)
+      return response.data
+    } catch (err) {
+      console.error("Get simulation status error:", err)
+      throw err
+    }
+  }
 
   return (
-    <SimulationContext.Provider value={value}>
+    <SimulationContext.Provider
+      value={{
+        isSimulationRunning,
+        simulationSpeed,
+        simulationTime,
+        simulationWeather,
+        simulationError,
+        simulationSuccess,
+        startSimulation,
+        stopSimulation,
+        updateSimulation,
+        getSimulationStatus,
+        clearMessages,
+      }}
+    >
       {children}
     </SimulationContext.Provider>
-  );
+  )
+}
+
+// Custom hook to use the simulation context
+export const useSimulation = () => {
+  const context = useContext(SimulationContext)
+  if (context === undefined) {
+    throw new Error("useSimulation must be used within a SimulationProvider")
+  }
+  return context
 }

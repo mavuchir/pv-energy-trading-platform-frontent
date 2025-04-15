@@ -14,7 +14,7 @@ const api = axios.create({
 // Add a request interceptor to include the auth token in all requests
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token")
+    const token = localStorage.getItem("auth_token")
     if (token) {
       config.headers["Authorization"] = `Bearer ${token}`
     }
@@ -34,11 +34,11 @@ api.interceptors.response.use(
     // Handle 401 Unauthorized errors by redirecting to login
     if (error.response && error.response.status === 401) {
       // Clear token and redirect to login
-      localStorage.removeItem("token")
+      localStorage.removeItem("auth_token")
       localStorage.removeItem("user")
 
       // Redirect to login page
-      window.location.href = "/login"
+      window.location.href = "auth/login"
       // We can't use navigate here, so we'll let the component handle the redirect
     }
 
@@ -61,11 +61,11 @@ api.interceptors.response.use(
       ) {
         console.log("Authentication error, clearing token and redirecting to login")
         // Clear local storage
-        localStorage.removeItem("token")
+        localStorage.removeItem("auth_token")
         localStorage.removeItem("user")
 
         // Redirect to login page
-        window.location.href = "/login"
+        window.location.href = "auth/login"
       }
     }
     return Promise.reject(error)

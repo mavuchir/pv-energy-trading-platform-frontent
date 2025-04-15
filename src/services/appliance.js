@@ -4,7 +4,7 @@ const ApplianceService = {
   // Get all appliances
   getAllAppliances: async () => {
     try {
-      const response = await api.get("/appliance/all")
+      const response = await api.get("/appliance/list")
       return {
         success: true,
         appliances: response.data?.appliances || [],

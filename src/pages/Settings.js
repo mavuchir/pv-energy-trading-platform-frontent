@@ -3,558 +3,837 @@
 import { useState, useEffect } from "react"
 import {
   FaCog,
+  FaBell,
+  FaShieldAlt,
+  FaExchangeAlt,
   FaSolarPanel,
-  FaBatteryFull,
-  FaUser,
-  FaHome,
+  FaSave,
   FaExclamationTriangle,
   FaCheckCircle,
-  FaSpinner,
-  FaKey,
-  FaShieldAlt,
-  FaTrash,
 } from "react-icons/fa"
+import AdminService from "../services/AdminService"
 import { useAuth } from "../contexts/AuthContext"
-import HouseholdService from "../services/household"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
-import { Button } from "../components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs"
-import { Input } from "../components/ui/Input"
-import { Label } from "../components/ui/label"
-import { Switch } from "../components/ui/switch"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "../components/ui/dialog"
 
 const Settings = () => {
-  const { user, updateUser, logout } = useAuth()
+  const { user } = useAuth()
+  const [activeTab, setActiveTab] = useState("general")
+  const [settings, setSettings] = useState({
+    general: {
+      theme: "light",
+      language: "en",
+      timeZone: "UTC",
+      dateFormat: "MM/DD/YYYY",
+      timeFormat: "12h",
+    },
+    privacy: {
+      shareEnergyData: true,
+      shareTradingHistory: true,
+      shareLocationData: false,
+      allowAnonymousAnalytics: true,
+      showProfileInCommunity: true,
+    },
+    energy: {
+      preferredEnergyUnit: "kWh",
+      batterySafetyThreshold: 20,
+      autoSellThreshold: 80,
+      autoBuyThreshold: 30,
+      maximumBuyPrice: 0.15,
+      minimumSellPrice: 0.1,
+    },
+    trading: {
+      autoAcceptTrades: false,
+      tradingEnabled: true,
+      preferLocalTrades: true,
+      maximumTradeDistance: 50,
+      minimumTradeAmount: 1,
+    },
+    notifications: {
+      emailNotifications: true,
+      pushNotifications: true,
+      smsNotifications: false,
+      lowBatteryAlerts: true,
+      highProductionAlerts: true,
+      tradingOpportunities: true,
+      systemUpdates: true,
+      weeklyReports: true,
+    },
+  })
+
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
-  const [activeTab, setActiveTab] = useState("profile")
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
-  const [profileForm, setProfileForm] = useState({
-    full_name: "",
-    email: "",
-    phone: "",
-    location: "",
-    latitude: "",
-    longitude: "",
-  })
-  const [systemForm, setSystemForm] = useState({
-    solar_capacity: 0,
-    panel_efficiency: 0,
-    battery_capacity: 0,
-    battery_efficiency: 0,
-    grid_connection: true,
-  })
-  const [passwordForm, setPasswordForm] = useState({
-    current_password: "",
-    new_password: "",
-    confirm_password: "",
-  })
+  const [error, setError] = useState(null)
 
-  // Load user data
   useEffect(() => {
-    if (user) {
-      setProfileForm({
-        full_name: user.full_name || "",
-        email: user.email || "",
-        phone: user.phone || "",
-        location: user.location || "",
-        latitude: user.latitude || "",
-        longitude: user.longitude || "",
-      })
+    fetchSettings()
+  }, [])
 
-      setSystemForm({
-        solar_capacity: user.solar_capacity || 0,
-        panel_efficiency: user.panel_efficiency || 0,
-        battery_capacity: user.battery_capacity || 0,
-        battery_efficiency: user.battery_efficiency || 0,
-        grid_connection: user.grid_connection !== false,
-      })
-    }
-  }, [user])
-
-  // Handle profile form changes
-  const handleProfileChange = (e) => {
-    const { name, value } = e.target
-    setProfileForm({
-      ...profileForm,
-      [name]: value,
-    })
-  }
-
-  // Handle system form changes
-  const handleSystemChange = (e) => {
-    const { name, value, type, checked } = e.target
-    setSystemForm({
-      ...systemForm,
-      [name]: type === "checkbox" ? checked : Number.parseFloat(value),
-    })
-  }
-
-  // Handle password form changes
-  const handlePasswordChange = (e) => {
-    const { name, value } = e.target
-    setPasswordForm({
-      ...passwordForm,
-      [name]: value,
-    })
-  }
-
-  // Update profile
-  const updateProfile = async () => {
+  const fetchSettings = async () => {
     try {
       setLoading(true)
-      setError(null)
+      const response = await AdminService.getSystemSettings()
 
-      const response = await HouseholdService.updateHouseholdProfile(profileForm)
-      if (response.success) {
-        setSuccess("Profile updated successfully")
-        updateUser(response.data)
-      } else {
-        setError(response.error || "Failed to update profile")
-      }
+      // Merge with default settings to ensure we have all fields
+      setSettings({
+        ...settings,
+        ...response.data,
+      })
     } catch (err) {
-      console.error("Error updating profile:", err)
-      setError("Failed to update profile. Please try again.")
+      console.error("Error fetching settings:", err)
+      setError("Failed to load settings. Using default values.")
+      // Continue with default settings
     } finally {
       setLoading(false)
     }
   }
 
-  // Update system configuration
-  const updateSystem = async () => {
+  const handleChangeSettings = (category, setting, value) => {
+    setSettings({
+      ...settings,
+      [category]: {
+        ...settings[category],
+        [setting]: value,
+      },
+    })
+  }
+
+  const handleSaveSettings = async () => {
     try {
       setLoading(true)
       setError(null)
 
-      const response = await HouseholdService.updateHouseholdConfiguration(systemForm)
-      if (response.success) {
-        setSuccess("System configuration updated successfully")
-        updateUser(response.data)
-      } else {
-        setError(response.error || "Failed to update system configuration")
-      }
+      await AdminService.updateSystemSettings(settings)
+
+      setSuccess("Settings saved successfully")
+      setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
-      console.error("Error updating system configuration:", err)
-      setError("Failed to update system configuration. Please try again.")
+      console.error("Error saving settings:", err)
+      setError("Failed to save settings. Please try again.")
     } finally {
       setLoading(false)
     }
   }
 
-  // Change password
-  const changePassword = async () => {
-    try {
-      setLoading(true)
-      setError(null)
+  const renderGeneralSettings = () => (
+    <div>
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Theme</label>
+        <select
+          value={settings.general.theme}
+          onChange={(e) => handleChangeSettings("general", "theme", e.target.value)}
+          className="block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        >
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="system">System Default</option>
+        </select>
+      </div>
 
-      // Validate passwords
-      if (passwordForm.new_password !== passwordForm.confirm_password) {
-        setError("New passwords do not match")
-        setLoading(false)
-        return
-      }
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+        <select
+          value={settings.general.language}
+          onChange={(e) => handleChangeSettings("general", "language", e.target.value)}
+          className="block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        >
+          <option value="en">English</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="zh">Chinese</option>
+        </select>
+      </div>
 
-      // Mock API call - replace with actual API call
-      setTimeout(() => {
-        setSuccess("Password changed successfully")
-        setShowPasswordDialog(false)
-        setPasswordForm({
-          current_password: "",
-          new_password: "",
-          confirm_password: "",
-        })
-        setLoading(false)
-      }, 1000)
-    } catch (err) {
-      console.error("Error changing password:", err)
-      setError("Failed to change password. Please try again.")
-      setLoading(false)
-    }
-  }
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Time Zone</label>
+        <select
+          value={settings.general.timeZone}
+          onChange={(e) => handleChangeSettings("general", "timeZone", e.target.value)}
+          className="block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        >
+          <option value="UTC">UTC</option>
+          <option value="EST">Eastern Time</option>
+          <option value="CST">Central Time</option>
+          <option value="MST">Mountain Time</option>
+          <option value="PST">Pacific Time</option>
+        </select>
+      </div>
 
-  // Delete account
-  const deleteAccount = async () => {
-    try {
-      setLoading(true)
-      setError(null)
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Date Format</label>
+        <select
+          value={settings.general.dateFormat}
+          onChange={(e) => handleChangeSettings("general", "dateFormat", e.target.value)}
+          className="block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        >
+          <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+          <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+          <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+        </select>
+      </div>
 
-      // Mock API call - replace with actual API call
-      setTimeout(() => {
-        setShowDeleteDialog(false)
-        logout()
-        window.location.href = "/login"
-      }, 1000)
-    } catch (err) {
-      console.error("Error deleting account:", err)
-      setError("Failed to delete account. Please try again.")
-      setLoading(false)
-    }
-  }
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Time Format</label>
+        <select
+          value={settings.general.timeFormat}
+          onChange={(e) => handleChangeSettings("general", "timeFormat", e.target.value)}
+          className="block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        >
+          <option value="12h">12-hour (AM/PM)</option>
+          <option value="24h">24-hour</option>
+        </select>
+      </div>
+    </div>
+  )
 
-  return (
-    <div className="container mx-auto p-4">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-teal-600">Settings</h1>
-          <p className="text-gray-600">Manage your account and system preferences</p>
+  const renderPrivacySettings = () => (
+    <div>
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Share Energy Data</label>
+            <p className="text-xs text-gray-500 mt-1">
+              Allow your energy production and consumption data to be shared anonymously for community benchmarking
+            </p>
+          </div>
+          <div className="relative inline-block w-12 mr-2 align-middle select-none">
+            <input
+              type="checkbox"
+              id="share-energy-data"
+              checked={settings.privacy.shareEnergyData}
+              onChange={(e) => handleChangeSettings("privacy", "shareEnergyData", e.target.checked)}
+              className="sr-only"
+            />
+            <label
+              htmlFor="share-energy-data"
+              className={`toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer ${
+                settings.privacy.shareEnergyData ? "bg-teal-500" : ""
+              }`}
+            >
+              <span
+                className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                  settings.privacy.shareEnergyData ? "transform translate-x-6" : ""
+                }`}
+              ></span>
+            </label>
+          </div>
         </div>
       </div>
 
-      {error && (
-        <Card className="bg-red-50 mb-6">
-          <CardContent className="pt-6">
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Share Trading History</label>
+            <p className="text-xs text-gray-500 mt-1">
+              Allow your trading history to be shared anonymously to improve market recommendations
+            </p>
+          </div>
+          <div className="relative inline-block w-12 mr-2 align-middle select-none">
+            <input
+              type="checkbox"
+              id="share-trading-history"
+              checked={settings.privacy.shareTradingHistory}
+              onChange={(e) => handleChangeSettings("privacy", "shareTradingHistory", e.target.checked)}
+              className="sr-only"
+            />
+            <label
+              htmlFor="share-trading-history"
+              className={`toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer ${
+                settings.privacy.shareTradingHistory ? "bg-teal-500" : ""
+              }`}
+            >
+              <span
+                className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                  settings.privacy.shareTradingHistory ? "transform translate-x-6" : ""
+                }`}
+              ></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Share Location Data</label>
+            <p className="text-xs text-gray-500 mt-1">
+              Share your approximate location to find local trading opportunities
+            </p>
+          </div>
+          <div className="relative inline-block w-12 mr-2 align-middle select-none">
+            <input
+              type="checkbox"
+              id="share-location-data"
+              checked={settings.privacy.shareLocationData}
+              onChange={(e) => handleChangeSettings("privacy", "shareLocationData", e.target.checked)}
+              className="sr-only"
+            />
+            <label
+              htmlFor="share-location-data"
+              className={`toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer ${
+                settings.privacy.shareLocationData ? "bg-teal-500" : ""
+              }`}
+            >
+              <span
+                className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                  settings.privacy.shareLocationData ? "transform translate-x-6" : ""
+                }`}
+              ></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Allow Anonymous Analytics</label>
+            <p className="text-xs text-gray-500 mt-1">
+              Allow usage data to be collected anonymously to improve the system
+            </p>
+          </div>
+          <div className="relative inline-block w-12 mr-2 align-middle select-none">
+            <input
+              type="checkbox"
+              id="allow-analytics"
+              checked={settings.privacy.allowAnonymousAnalytics}
+              onChange={(e) => handleChangeSettings("privacy", "allowAnonymousAnalytics", e.target.checked)}
+              className="sr-only"
+            />
+            <label
+              htmlFor="allow-analytics"
+              className={`toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer ${
+                settings.privacy.allowAnonymousAnalytics ? "bg-teal-500" : ""
+              }`}
+            >
+              <span
+                className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                  settings.privacy.allowAnonymousAnalytics ? "transform translate-x-6" : ""
+                }`}
+              ></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Show Profile in Community</label>
+            <p className="text-xs text-gray-500 mt-1">
+              Make your profile visible to other members of your energy community
+            </p>
+          </div>
+          <div className="relative inline-block w-12 mr-2 align-middle select-none">
+            <input
+              type="checkbox"
+              id="show-profile"
+              checked={settings.privacy.showProfileInCommunity}
+              onChange={(e) => handleChangeSettings("privacy", "showProfileInCommunity", e.target.checked)}
+              className="sr-only"
+            />
+            <label
+              htmlFor="show-profile"
+              className={`toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer ${
+                settings.privacy.showProfileInCommunity ? "bg-teal-500" : ""
+              }`}
+            >
+              <span
+                className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                  settings.privacy.showProfileInCommunity ? "transform translate-x-6" : ""
+                }`}
+              ></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderEnergySettings = () => (
+    <div>
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Energy Unit</label>
+        <select
+          value={settings.energy.preferredEnergyUnit}
+          onChange={(e) => handleChangeSettings("energy", "preferredEnergyUnit", e.target.value)}
+          className="block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        >
+          <option value="kWh">kilowatt-hour (kWh)</option>
+          <option value="MWh">megawatt-hour (MWh)</option>
+          <option value="Wh">watt-hour (Wh)</option>
+        </select>
+      </div>
+
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Battery Safety Threshold (%)</label>
+        <div className="flex items-center">
+          <input
+            type="range"
+            min="5"
+            max="50"
+            step="5"
+            value={settings.energy.batterySafetyThreshold}
+            onChange={(e) => handleChangeSettings("energy", "batterySafetyThreshold", Number.parseInt(e.target.value))}
+            className="flex-grow mr-4 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+          />
+          <span className="inline-block w-12 text-center bg-gray-100 rounded-md py-1 text-gray-700 text-sm">
+            {settings.energy.batterySafetyThreshold}%
+          </span>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          System will alert you when battery level falls below this threshold
+        </p>
+      </div>
+
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Auto-Sell Threshold (%)</label>
+        <div className="flex items-center">
+          <input
+            type="range"
+            min="50"
+            max="100"
+            step="5"
+            value={settings.energy.autoSellThreshold}
+            onChange={(e) => handleChangeSettings("energy", "autoSellThreshold", Number.parseInt(e.target.value))}
+            className="flex-grow mr-4 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+          />
+          <span className="inline-block w-12 text-center bg-gray-100 rounded-md py-1 text-gray-700 text-sm">
+            {settings.energy.autoSellThreshold}%
+          </span>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          System will automatically sell excess energy when battery level exceeds this threshold
+        </p>
+      </div>
+
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Auto-Buy Threshold (%)</label>
+        <div className="flex items-center">
+          <input
+            type="range"
+            min="10"
+            max="50"
+            step="5"
+            value={settings.energy.autoBuyThreshold}
+            onChange={(e) => handleChangeSettings("energy", "autoBuyThreshold", Number.parseInt(e.target.value))}
+            className="flex-grow mr-4 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+          />
+          <span className="inline-block w-12 text-center bg-gray-100 rounded-md py-1 text-gray-700 text-sm">
+            {settings.energy.autoBuyThreshold}%
+          </span>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          System will automatically buy energy when battery level falls below this threshold
+        </p>
+      </div>
+
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Buy Price ($/kWh)</label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <span className="text-gray-500 sm:text-sm">$</span>
+          </div>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            max="1"
+            value={settings.energy.maximumBuyPrice}
+            onChange={(e) => handleChangeSettings("energy", "maximumBuyPrice", Number.parseFloat(e.target.value))}
+            className="pl-7 block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          />
+        </div>
+        <p className="text-xs text-gray-500 mt-1">System will not automatically purchase energy above this price</p>
+      </div>
+
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Sell Price ($/kWh)</label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <span className="text-gray-500 sm:text-sm">$</span>
+          </div>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            max="1"
+            value={settings.energy.minimumSellPrice}
+            onChange={(e) => handleChangeSettings("energy", "minimumSellPrice", Number.parseFloat(e.target.value))}
+            className="pl-7 block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          />
+        </div>
+        <p className="text-xs text-gray-500 mt-1">System will not automatically sell energy below this price</p>
+      </div>
+    </div>
+  )
+
+  const renderTradingSettings = () => (
+    <div>
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Enable Trading</label>
+            <p className="text-xs text-gray-500 mt-1">Allow your system to participate in energy trading</p>
+          </div>
+          <div className="relative inline-block w-12 mr-2 align-middle select-none">
+            <input
+              type="checkbox"
+              id="trading-enabled"
+              checked={settings.trading.tradingEnabled}
+              onChange={(e) => handleChangeSettings("trading", "tradingEnabled", e.target.checked)}
+              className="sr-only"
+            />
+            <label
+              htmlFor="trading-enabled"
+              className={`toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer ${
+                settings.trading.tradingEnabled ? "bg-teal-500" : ""
+              }`}
+            >
+              <span
+                className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                  settings.trading.tradingEnabled ? "transform translate-x-6" : ""
+                }`}
+              ></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Auto-Accept Trades</label>
+            <p className="text-xs text-gray-500 mt-1">Automatically accept trades that meet your criteria</p>
+          </div>
+          <div className="relative inline-block w-12 mr-2 align-middle select-none">
+            <input
+              type="checkbox"
+              id="auto-accept-trades"
+              checked={settings.trading.autoAcceptTrades}
+              onChange={(e) => handleChangeSettings("trading", "autoAcceptTrades", e.target.checked)}
+              className="sr-only"
+            />
+            <label
+              htmlFor="auto-accept-trades"
+              className={`toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer ${
+                settings.trading.autoAcceptTrades ? "bg-teal-500" : ""
+              }`}
+            >
+              <span
+                className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                  settings.trading.autoAcceptTrades ? "transform translate-x-6" : ""
+                }`}
+              ></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Prefer Local Trades</label>
+            <p className="text-xs text-gray-500 mt-1">Prioritize trading with households in your vicinity</p>
+          </div>
+          <div className="relative inline-block w-12 mr-2 align-middle select-none">
+            <input
+              type="checkbox"
+              id="prefer-local-trades"
+              checked={settings.trading.preferLocalTrades}
+              onChange={(e) => handleChangeSettings("trading", "preferLocalTrades", e.target.checked)}
+              className="sr-only"
+            />
+            <label
+              htmlFor="prefer-local-trades"
+              className={`toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer ${
+                settings.trading.preferLocalTrades ? "bg-teal-500" : ""
+              }`}
+            >
+              <span
+                className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                  settings.trading.preferLocalTrades ? "transform translate-x-6" : ""
+                }`}
+              ></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Trade Distance (km)</label>
+        <input
+          type="number"
+          min="1"
+          max="1000"
+          value={settings.trading.maximumTradeDistance}
+          onChange={(e) => handleChangeSettings("trading", "maximumTradeDistance", Number.parseInt(e.target.value))}
+          className="block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        />
+        <p className="text-xs text-gray-500 mt-1">Maximum distance for trading partners (in kilometers)</p>
+      </div>
+
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Trade Amount (kWh)</label>
+        <input
+          type="number"
+          min="0.1"
+          step="0.1"
+          value={settings.trading.minimumTradeAmount}
+          onChange={(e) => handleChangeSettings("trading", "minimumTradeAmount", Number.parseFloat(e.target.value))}
+          className="block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+        />
+        <p className="text-xs text-gray-500 mt-1">Minimum amount of energy for each trade</p>
+      </div>
+    </div>
+  )
+
+  const renderNotificationSettings = () => (
+    <div>
+      <div className="mb-6">
+        <h3 className="text-md font-medium text-gray-700 mb-3">Notification Channels</h3>
+        <div className="space-y-2">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="email-notifications"
+              checked={settings.notifications.emailNotifications}
+              onChange={(e) => handleChangeSettings("notifications", "emailNotifications", e.target.checked)}
+              className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+            />
+            <label htmlFor="email-notifications" className="ml-2 block text-sm text-gray-700">
+              Email Notifications
+            </label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="push-notifications"
+              checked={settings.notifications.pushNotifications}
+              onChange={(e) => handleChangeSettings("notifications", "pushNotifications", e.target.checked)}
+              className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+            />
+            <label htmlFor="push-notifications" className="ml-2 block text-sm text-gray-700">
+              Push Notifications
+            </label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="sms-notifications"
+              checked={settings.notifications.smsNotifications}
+              onChange={(e) => handleChangeSettings("notifications", "smsNotifications", e.target.checked)}
+              className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+            />
+            <label htmlFor="sms-notifications" className="ml-2 block text-sm text-gray-700">
+              SMS Notifications
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <h3 className="text-md font-medium text-gray-700 mb-3">Notification Types</h3>
+        <div className="space-y-2">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="low-battery-alerts"
+              checked={settings.notifications.lowBatteryAlerts}
+              onChange={(e) => handleChangeSettings("notifications", "lowBatteryAlerts", e.target.checked)}
+              className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+            />
+            <label htmlFor="low-battery-alerts" className="ml-2 block text-sm text-gray-700">
+              Low Battery Alerts
+            </label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="high-production-alerts"
+              checked={settings.notifications.highProductionAlerts}
+              onChange={(e) => handleChangeSettings("notifications", "highProductionAlerts", e.target.checked)}
+              className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+            />
+            <label htmlFor="high-production-alerts" className="ml-2 block text-sm text-gray-700">
+              High Production Alerts
+            </label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="trading-opportunities"
+              checked={settings.notifications.tradingOpportunities}
+              onChange={(e) => handleChangeSettings("notifications", "tradingOpportunities", e.target.checked)}
+              className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+            />
+            <label htmlFor="trading-opportunities" className="ml-2 block text-sm text-gray-700">
+              Trading Opportunities
+            </label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="system-updates"
+              checked={settings.notifications.systemUpdates}
+              onChange={(e) => handleChangeSettings("notifications", "systemUpdates", e.target.checked)}
+              className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+            />
+            <label htmlFor="system-updates" className="ml-2 block text-sm text-gray-700">
+              System Updates
+            </label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="weekly-reports"
+              checked={settings.notifications.weeklyReports}
+              onChange={(e) => handleChangeSettings("notifications", "weeklyReports", e.target.checked)}
+              className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+            />
+            <label htmlFor="weekly-reports" className="ml-2 block text-sm text-gray-700">
+              Weekly Energy Reports
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-teal-600">Settings</h1>
+          <p className="text-gray-600">Configure your system preferences and options</p>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
             <div className="flex items-center text-red-600">
               <FaExclamationTriangle className="mr-2" />
               <p>{error}</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
 
-      {success && (
-        <Card className="bg-green-50 mb-6">
-          <CardContent className="pt-6">
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
             <div className="flex items-center text-green-600">
               <FaCheckCircle className="mr-2" />
               <p>{success}</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-        <TabsList className="mb-4">
-          <TabsTrigger value="profile">
-            <FaUser className="mr-2" /> Profile
-          </TabsTrigger>
-          <TabsTrigger value="system">
-            <FaCog className="mr-2" /> System Configuration
-          </TabsTrigger>
-          <TabsTrigger value="security">
-            <FaShieldAlt className="mr-2" /> Security
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Profile Tab */}
-        <TabsContent value="profile">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
-              <CardDescription>Update your personal information</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="full_name">Full Name</Label>
-                    <Input
-                      id="full_name"
-                      name="full_name"
-                      value={profileForm.full_name}
-                      onChange={handleProfileChange}
-                      placeholder="Your full name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={profileForm.email}
-                      onChange={handleProfileChange}
-                      placeholder="your.email..example.com"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      value={profileForm.phone}
-                      onChange={handleProfileChange}
-                      placeholder="Your phone number"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="location">Location</Label>
-                    <Input
-                      id="location"
-                      name="location"
-                      value={profileForm.location}
-                      onChange={handleProfileChange}
-                      placeholder="Your location"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="latitude">Latitude</Label>
-                    <Input
-                      id="latitude"
-                      name="latitude"
-                      value={profileForm.latitude}
-                      onChange={handleProfileChange}
-                      placeholder="Latitude coordinates"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="longitude">Longitude</Label>
-                    <Input
-                      id="longitude"
-                      name="longitude"
-                      value={profileForm.longitude}
-                      onChange={handleProfileChange}
-                      placeholder="Longitude coordinates"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <Button onClick={updateProfile} className="bg-teal-600 hover:bg-teal-700">
-                    {loading ? <FaSpinner className="animate-spin mr-2" /> : null}
-                    Save Profile
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* System Configuration Tab */}
-        <TabsContent value="system">
-          <Card>
-            <CardHeader>
-              <CardTitle>System Configuration</CardTitle>
-              <CardDescription>Configure your energy system specifications</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center">
-                      <FaSolarPanel className="mr-2 text-yellow-500" />
-                      <Label htmlFor="solar_capacity">Solar Capacity (kW)</Label>
-                    </div>
-                    <Input
-                      id="solar_capacity"
-                      name="solar_capacity"
-                      type="number"
-                      value={systemForm.solar_capacity}
-                      onChange={handleSystemChange}
-                      placeholder="e.g. 5.0"
-                      step="0.1"
-                      min="0"
-                    />
-                    <p className="text-xs text-gray-500">Total capacity of your solar panels in kilowatts</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="panel_efficiency">Panel Efficiency (%)</Label>
-                    <Input
-                      id="panel_efficiency"
-                      name="panel_efficiency"
-                      type="number"
-                      value={systemForm.panel_efficiency}
-                      onChange={handleSystemChange}
-                      placeholder="e.g. 18.5"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                    />
-                    <p className="text-xs text-gray-500">Efficiency rating of your solar panels</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center">
-                      <FaBatteryFull className="mr-2 text-green-500" />
-                      <Label htmlFor="battery_capacity">Battery Capacity (kWh)</Label>
-                    </div>
-                    <Input
-                      id="battery_capacity"
-                      name="battery_capacity"
-                      type="number"
-                      value={systemForm.battery_capacity}
-                      onChange={handleSystemChange}
-                      placeholder="e.g. 10.0"
-                      step="0.1"
-                      min="0"
-                    />
-                    <p className="text-xs text-gray-500">Total capacity of your battery storage in kilowatt-hours</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="battery_efficiency">Battery Efficiency (%)</Label>
-                    <Input
-                      id="battery_efficiency"
-                      name="battery_efficiency"
-                      type="number"
-                      value={systemForm.battery_efficiency}
-                      onChange={handleSystemChange}
-                      placeholder="e.g. 90.0"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                    />
-                    <p className="text-xs text-gray-500">Charge/discharge efficiency of your battery</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <div className="flex items-center">
-                    <FaHome className="mr-2 text-blue-500" />
-                    <Label htmlFor="grid_connection">Grid Connection</Label>
-                  </div>
-                  <Switch
-                    id="grid_connection"
-                    checked={systemForm.grid_connection}
-                    onCheckedChange={(checked) => setSystemForm({ ...systemForm, grid_connection: checked })}
-                  />
-                  <span className="text-sm text-gray-500">
-                    {systemForm.grid_connection ? "Connected to grid" : "Off-grid system"}
-                  </span>
-                </div>
-
-                <div className="flex justify-end">
-                  <Button onClick={updateSystem} className="bg-teal-600 hover:bg-teal-700">
-                    {loading ? <FaSpinner className="animate-spin mr-2" /> : null}
-                    Save Configuration
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Security Tab */}
-        <TabsContent value="security">
-          <Card>
-            <CardHeader>
-              <CardTitle>Security Settings</CardTitle>
-              <CardDescription>Manage your account security</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-start">
-                    <FaKey className="mt-1 mr-3 text-blue-500" />
-                    <div>
-                      <h3 className="font-medium">Password</h3>
-                      <p className="text-sm text-gray-500">Change your account password</p>
-                    </div>
-                  </div>
-                  <Button variant="outline" onClick={() => setShowPasswordDialog(true)}>
-                    Change Password
-                  </Button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-start">
-                    <FaTrash className="mt-1 mr-3 text-red-500" />
-                    <div>
-                      <h3 className="font-medium">Delete Account</h3>
-                      <p className="text-sm text-gray-500">Permanently delete your account and all data</p>
-                    </div>
-                  </div>
-                  <Button variant="destructive" onClick={() => setShowDeleteDialog(true)}>
-                    Delete Account
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Change Password Dialog */}
-      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change Password</DialogTitle>
-            <DialogDescription>Enter your current password and a new password.</DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="current_password">Current Password</Label>
-              <Input
-                id="current_password"
-                name="current_password"
-                type="password"
-                value={passwordForm.current_password}
-                onChange={handlePasswordChange}
-              />
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-4">
+            <div className="bg-gray-50 p-4 border-r border-gray-200">
+              <nav className="space-y-1">
+                <button
+                  onClick={() => setActiveTab("general")}
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md w-full ${
+                    activeTab === "general" ? "bg-teal-50 text-teal-600" : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <FaCog className={`mr-3 ${activeTab === "general" ? "text-teal-500" : "text-gray-400"}`} />
+                  General
+                </button>
+                <button
+                  onClick={() => setActiveTab("privacy")}
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md w-full ${
+                    activeTab === "privacy" ? "bg-teal-50 text-teal-600" : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <FaShieldAlt className={`mr-3 ${activeTab === "privacy" ? "text-teal-500" : "text-gray-400"}`} />
+                  Privacy
+                </button>
+                <button
+                  onClick={() => setActiveTab("energy")}
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md w-full ${
+                    activeTab === "energy" ? "bg-teal-50 text-teal-600" : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <FaSolarPanel className={`mr-3 ${activeTab === "energy" ? "text-teal-500" : "text-gray-400"}`} />
+                  Energy
+                </button>
+                <button
+                  onClick={() => setActiveTab("trading")}
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md w-full ${
+                    activeTab === "trading" ? "bg-teal-50 text-teal-600" : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <FaExchangeAlt className={`mr-3 ${activeTab === "trading" ? "text-teal-500" : "text-gray-400"}`} />
+                  Trading
+                </button>
+                <button
+                  onClick={() => setActiveTab("notifications")}
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md w-full ${
+                    activeTab === "notifications" ? "bg-teal-50 text-teal-600" : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <FaBell className={`mr-3 ${activeTab === "notifications" ? "text-teal-500" : "text-gray-400"}`} />
+                  Notifications
+                </button>
+              </nav>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="new_password">New Password</Label>
-              <Input
-                id="new_password"
-                name="new_password"
-                type="password"
-                value={passwordForm.new_password}
-                onChange={handlePasswordChange}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="confirm_password">Confirm New Password</Label>
-              <Input
-                id="confirm_password"
-                name="confirm_password"
-                type="password"
-                value={passwordForm.confirm_password}
-                onChange={handlePasswordChange}
-              />
+
+            <div className="p-6 col-span-3">
+              <h2 className="text-xl font-medium text-gray-800 mb-6">
+                {activeTab === "general" && "General Settings"}
+                {activeTab === "privacy" && "Privacy Settings"}
+                {activeTab === "energy" && "Energy Settings"}
+                {activeTab === "trading" && "Trading Settings"}
+                {activeTab === "notifications" && "Notification Settings"}
+              </h2>
+
+              {activeTab === "general" && renderGeneralSettings()}
+              {activeTab === "privacy" && renderPrivacySettings()}
+              {activeTab === "energy" && renderEnergySettings()}
+              {activeTab === "trading" && renderTradingSettings()}
+              {activeTab === "notifications" && renderNotificationSettings()}
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={handleSaveSettings}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <FaSave className="mr-2" />
+                      Save Settings
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPasswordDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={changePassword} className="bg-blue-600 hover:bg-blue-700">
-              {loading ? <FaSpinner className="animate-spin mr-2" /> : null}
-              Change Password
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Account Dialog */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Account</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete your account? This action cannot be undone and all your data will be
-              permanently deleted.
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={deleteAccount}>
-              {loading ? <FaSpinner className="animate-spin mr-2" /> : null}
-              Delete Account
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
     </div>
   )
 }

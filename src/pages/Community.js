@@ -1,299 +1,432 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../components/ui/Card"
-import { Button } from "../components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs"
-import { useToast } from "../hooks/use-toast"
-import { useAuth } from "../contexts/AuthContext"
-import api from "../config/axios"
-import { FaUsers, FaExclamationTriangle, FaSolarPanel, FaBatteryFull, FaExchangeAlt } from "react-icons/fa"
+import {
+  FaUsers,
+  FaExchangeAlt,
+  FaChartLine,
+  FaSync,
+  FaExclamationTriangle,
+  FaUserPlus,
+  FaSignOutAlt,
+  FaInfoCircle,
+} from "react-icons/fa"
+import CommunityService from "../services/CommunityService"
+import TradeService from "../services/TradeService"
 
-const CommunityPage = () => {
-  const { user } = useAuth()
-  const { toast } = useToast()
-  const [community, setCommunity] = useState(null)
-  const [communityMembers, setCommunityMembers] = useState([])
-  const [communityStats, setCommunityStats] = useState(null)
+const Community = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [communityData, setCommunityData] = useState(null)
+  const [communities, setCommunities] = useState([])
+  const [selectedCommunity, setSelectedCommunity] = useState(null)
+  const [trades, setTrades] = useState([])
+  const [members, setMembers] = useState([])
+  const [statistics, setStatistics] = useState(null)
+  const [selectedPeriod, setSelectedPeriod] = useState("month")
 
   useEffect(() => {
-    if (user) {
+    fetchCommunities()
+  }, [])
+
+  useEffect(() => {
+    if (selectedCommunity) {
       fetchCommunityData()
     }
-  }, [user])
+  }, [selectedCommunity, selectedPeriod])
 
-  const fetchCommunityData = async () => {
+  const fetchCommunities = async () => {
     try {
       setLoading(true)
-      // Get list of communities (should only be one default community)
-      const communitiesResponse = await api.get("/community/list")
-      const communities = communitiesResponse.data.communities
-
-      if (communities.length > 0) {
-        // Get the default community (first one)
-        const defaultCommunity = communities[0]
-        setCommunity(defaultCommunity)
-
-        // Fetch community details
-        const [membersResponse, statsResponse] = await Promise.all([
-          api.get(`/community/${defaultCommunity.id}/members`),
-          api.get(`/community/${defaultCommunity.id}/stats`),
-        ])
-
-        setCommunityMembers(membersResponse.data.members)
-        setCommunityStats(statsResponse.data)
-      }
-
       setError(null)
+
+      const response = await CommunityService.getCommunityData()
+      setCommunities(response.communities || [])
+
+      if (response.communities && response.communities.length > 0) {
+        setSelectedCommunity(response.communities[0].id)
+      }
     } catch (err) {
-      console.error("Error fetching community data:", err)
-      setError(err.response?.data?.msg || "Failed to fetch community data")
+      console.error("Error fetching communities:", err)
+      setError("Failed to fetch community data")
     } finally {
       setLoading(false)
     }
   }
 
-  if (loading) {
+  const fetchCommunityData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // Get community details
+      const communityDetails = await CommunityService.getCommunityStatistics(selectedPeriod)
+      setCommunityData(communityDetails)
+
+      // Get community members
+      const membersData = await CommunityService.getCommunityMembers()
+      setMembers(membersData.members || [])
+
+      // Get community trades
+      const tradesData = await TradeService.getCommunityTrades(selectedCommunity, selectedPeriod)
+      setTrades(tradesData.trades || [])
+
+      // Get statistics
+      setStatistics(
+        communityDetails.statistics || {
+          total_members: 0,
+          active_members: 0,
+          total_trades: 0,
+          total_energy: 0,
+          total_value: 0,
+        },
+      )
+    } catch (err) {
+      console.error("Error fetching community data:", err)
+      setError("Failed to fetch community data")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRefresh = () => {
+    fetchCommunityData()
+  }
+
+  const handleJoinCommunity = async (communityId) => {
+    try {
+      await CommunityService.joinCommunity(communityId)
+      fetchCommunities()
+    } catch (err) {
+      console.error("Error joining community:", err)
+      setError("Failed to join community")
+    }
+  }
+
+  const handleLeaveCommunity = async (communityId) => {
+    try {
+      await CommunityService.leaveCommunity(communityId)
+      fetchCommunities()
+    } catch (err) {
+      console.error("Error leaving community:", err)
+      setError("Failed to leave community")
+    }
+  }
+
+  if (loading && !communities.length) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-teal-600"></div>
       </div>
     )
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">Community Energy Sharing</h1>
+    <div className="container mx-auto px-4 py-6">
+      <div className="flex flex-wrap justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-800 mb-4 md:mb-0">Community Energy Sharing</h1>
 
-      {error && (
-        <Card className="bg-red-50 mb-6">
-          <CardContent className="pt-6">
-            <div className="flex items-center text-red-600">
-              <FaExclamationTriangle className="mr-2" />
-              <p>{error}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        <div className="flex flex-wrap items-center space-x-4">
+          <select
+            value={selectedCommunity || ""}
+            onChange={(e) => setSelectedCommunity(e.target.value)}
+            className="bg-white border border-gray-300 rounded-md shadow-sm py-2 pl-3 pr-10 text-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+            disabled={!communities.length}
+          >
+            {communities.length ? (
+              communities.map((community) => (
+                <option key={community.id} value={community.id}>
+                  {community.name}
+                </option>
+              ))
+            ) : (
+              <option value="">No communities available</option>
+            )}
+          </select>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Community Info */}
-        <div className="md:col-span-1">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center">
-                <FaUsers className="mr-2" />
-                Community
-              </CardTitle>
-              <CardDescription>Your energy sharing community</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {community ? (
-                <div className="space-y-4">
-                  <div className="bg-teal-100 border-l-4 border-teal-600 p-4 rounded-md">
-                    <h3 className="font-medium text-lg">{community.name}</h3>
-                    <p className="text-sm text-gray-600">{community.description || "A community for energy sharing"}</p>
-                    {community.location && <p className="text-xs text-gray-500 mt-1">{community.location}</p>}
-                    <p className="text-sm mt-2">
-                      <span className="font-medium">{community.member_count}</span> members
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Created: {new Date(community.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
+          <select
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
+            className="bg-white border border-gray-300 rounded-md shadow-sm py-2 pl-3 pr-10 text-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+          >
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+            <option value="year">This Year</option>
+          </select>
 
-                  <div className="text-sm text-gray-600">
-                    <p>
-                      You are automatically part of this community. All users can share and trade energy within this
-                      community.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <p>No community information available</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Community Details */}
-        <div className="md:col-span-2">
-          {community ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>{community.name}</CardTitle>
-                <CardDescription>{community.description || "A community for energy sharing"}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="overview">
-                  <TabsList>
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="members">Members</TabsTrigger>
-                    <TabsTrigger value="trades">Energy Trades</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="overview" className="space-y-4 mt-4">
-                    {communityStats ? (
-                      <>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="bg-gray-50 p-4 rounded-md">
-                            <div className="flex items-center text-teal-600 mb-2">
-                              <FaUsers className="mr-2" />
-                              <h3 className="font-medium">Members</h3>
-                            </div>
-                            <p className="text-2xl font-bold">{communityStats.member_count}</p>
-                          </div>
-                          <div className="bg-gray-50 p-4 rounded-md">
-                            <div className="flex items-center text-teal-600 mb-2">
-                              <FaSolarPanel className="mr-2" />
-                              <h3 className="font-medium">Total Solar</h3>
-                            </div>
-                            <p className="text-2xl font-bold">{communityStats.total_solar_capacity.toFixed(2)} kW</p>
-                          </div>
-                          <div className="bg-gray-50 p-4 rounded-md">
-                            <div className="flex items-center text-teal-600 mb-2">
-                              <FaBatteryFull className="mr-2" />
-                              <h3 className="font-medium">Total Battery</h3>
-                            </div>
-                            <p className="text-2xl font-bold">{communityStats.total_battery_capacity.toFixed(2)} kWh</p>
-                          </div>
-                        </div>
-
-                        <div className="bg-gray-50 p-4 rounded-md">
-                          <div className="flex items-center text-teal-600 mb-2">
-                            <FaExchangeAlt className="mr-2" />
-                            <h3 className="font-medium">Energy Trading</h3>
-                          </div>
-                          <p className="text-lg font-bold mb-2">
-                            Total Energy Traded: {communityStats.total_energy_traded.toFixed(2)} kWh
-                          </p>
-                          <Button
-                            onClick={() => (window.location.href = `/trading?community=${community.id}`)}
-                            className="mt-2"
-                          >
-                            Go to Trading Platform
-                          </Button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex justify-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="members" className="mt-4">
-                    {loading ? (
-                      <div className="flex justify-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="px-4 py-2 text-left">Member</th>
-                              <th className="px-4 py-2 text-left">Role</th>
-                              <th className="px-4 py-2 text-left">Joined</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {communityMembers.map((member) => (
-                              <tr key={member.id} className="border-b">
-                                <td className="px-4 py-2">{member.full_name || member.username}</td>
-                                <td className="px-4 py-2">
-                                  <span
-                                    className={`px-2 py-1 rounded-full text-xs ${
-                                      member.role === "admin"
-                                        ? "bg-blue-100 text-blue-800"
-                                        : "bg-gray-100 text-gray-800"
-                                    }`}
-                                  >
-                                    {member.role}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-2">{new Date(member.joined_at).toLocaleDateString()}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="trades" className="mt-4">
-                    {communityStats && communityStats.recent_trades ? (
-                      communityStats.recent_trades.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <table className="w-full">
-                            <thead>
-                              <tr className="border-b">
-                                <th className="px-4 py-2 text-left">Date</th>
-                                <th className="px-4 py-2 text-left">Seller</th>
-                                <th className="px-4 py-2 text-left">Buyer</th>
-                                <th className="px-4 py-2 text-left">Amount (kWh)</th>
-                                <th className="px-4 py-2 text-left">Price ($/kWh)</th>
-                                <th className="px-4 py-2 text-left">Total ($)</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {communityStats.recent_trades.map((trade) => (
-                                <tr key={trade.id} className="border-b">
-                                  <td className="px-4 py-2">{new Date(trade.completed_at).toLocaleDateString()}</td>
-                                  <td className="px-4 py-2">
-                                    {communityMembers.find((m) => m.id === trade.seller_id)?.username || "Unknown"}
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    {communityMembers.find((m) => m.id === trade.buyer_id)?.username || "Unknown"}
-                                  </td>
-                                  <td className="px-4 py-2">{trade.amount.toFixed(2)}</td>
-                                  <td className="px-4 py-2">${trade.price_per_kwh.toFixed(2)}</td>
-                                  <td className="px-4 py-2">${trade.total_price.toFixed(2)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <p>No recent trades in this community</p>
-                          <Button
-                            onClick={() => (window.location.href = `/trading?community=${community.id}`)}
-                            className="mt-4"
-                          >
-                            Start Trading
-                          </Button>
-                        </div>
-                      )
-                    ) : (
-                      <div className="flex justify-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
-                      </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <FaUsers className="text-gray-400 text-5xl mb-4" />
-                <h3 className="text-xl font-medium text-gray-600 mb-2">No Community Found</h3>
-                <p className="text-gray-500 text-center mb-6">
-                  There seems to be an issue with the community system. Please contact support.
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          <button
+            onClick={handleRefresh}
+            className="flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+            disabled={!selectedCommunity}
+          >
+            <FaSync className={`mr-2 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <FaExclamationTriangle className="h-5 w-5 text-red-400" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!communities.length ? (
+        <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+          <FaUsers className="mx-auto text-4xl text-gray-400 mb-4" />
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">No Communities Found</h2>
+          <p className="text-gray-500 mb-6">
+            There seems to be an issue with the community system. Please contact support.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Community Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center">
+                <div className="p-3 rounded-full bg-blue-100 mr-4">
+                  <FaUsers className="text-blue-600 text-xl" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Total Members</p>
+                  <p className="text-2xl font-semibold">{statistics?.total_members || 0}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center">
+                <div className="p-3 rounded-full bg-green-100 mr-4">
+                  <FaUsers className="text-green-600 text-xl" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Active Members</p>
+                  <p className="text-2xl font-semibold">{statistics?.active_members || 0}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center">
+                <div className="p-3 rounded-full bg-purple-100 mr-4">
+                  <FaExchangeAlt className="text-purple-600 text-xl" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Total Trades</p>
+                  <p className="text-2xl font-semibold">{statistics?.total_trades || 0}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center">
+                <div className="p-3 rounded-full bg-yellow-100 mr-4">
+                  <FaChartLine className="text-yellow-600 text-xl" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Energy Traded</p>
+                  <p className="text-2xl font-semibold">{statistics?.total_energy?.toFixed(1) || 0} kWh</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center">
+                <div className="p-3 rounded-full bg-teal-100 mr-4">
+                  <FaChartLine className="text-teal-600 text-xl" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Total Value</p>
+                  <p className="text-2xl font-semibold">${statistics?.total_value?.toFixed(2) || 0}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            {/* Community Info */}
+            <div className="bg-white rounded-lg shadow-sm lg:col-span-1">
+              <div className="p-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-800">Community Information</h2>
+              </div>
+              <div className="p-4">
+                {communityData ? (
+                  <div>
+                    <h3 className="text-xl font-semibold mb-2">{communityData.name}</h3>
+                    <p className="text-gray-600 mb-4">{communityData.description || "No description available"}</p>
+
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-500">Location</p>
+                      <p className="font-medium">{communityData.location || "Not specified"}</p>
+                    </div>
+
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-500">Created</p>
+                      <p className="font-medium">
+                        {communityData.created_at ? new Date(communityData.created_at).toLocaleDateString() : "Unknown"}
+                      </p>
+                    </div>
+
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-500">Your Role</p>
+                      <p className="font-medium capitalize">{communityData.your_role || "Member"}</p>
+                    </div>
+
+                    <div className="flex space-x-2 mt-6">
+                      {communityData.is_member ? (
+                        <button
+                          onClick={() => handleLeaveCommunity(selectedCommunity)}
+                          className="flex items-center px-4 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50"
+                        >
+                          <FaSignOutAlt className="mr-2" />
+                          Leave Community
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleJoinCommunity(selectedCommunity)}
+                          className="flex items-center px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700"
+                        >
+                          <FaUserPlus className="mr-2" />
+                          Join Community
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <FaInfoCircle className="mx-auto text-4xl text-gray-300 mb-2" />
+                    <p className="text-gray-500">Select a community to view details</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Recent Trades */}
+            <div className="bg-white rounded-lg shadow-sm lg:col-span-2">
+              <div className="p-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-800">Recent Trades</h2>
+              </div>
+              <div className="p-4">
+                {trades.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Date
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Seller
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Buyer
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Amount
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Price
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {trades.map((trade) => (
+                          <tr key={trade.id}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(trade.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                {trade.seller?.username || "Unknown"}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                {trade.buyer?.username || "Unknown"}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{trade.amount} kWh</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${trade.price}/kWh</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  trade.status === "completed"
+                                    ? "bg-green-100 text-green-800"
+                                    : trade.status === "pending"
+                                      ? "bg-yellow-100 text-yellow-800"
+                                      : "bg-red-100 text-red-800"
+                                }`}
+                              >
+                                {trade.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <FaExchangeAlt className="mx-auto text-4xl text-gray-300 mb-2" />
+                    <p className="text-gray-500">No trades found for this community</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Members List */}
+          <div className="bg-white rounded-lg shadow-sm mb-6">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-800">Community Members</h2>
+            </div>
+            <div className="p-4">
+              {members.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {members.map((member) => (
+                    <div key={member.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center mb-2">
+                        <div className="h-10 w-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold mr-3">
+                          {member.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="text-md font-semibold">{member.full_name || member.username}</h3>
+                          <p className="text-sm text-gray-500 capitalize">{member.role}</p>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <p>Joined: {new Date(member.joined_at).toLocaleDateString()}</p>
+                        {member.energy_contributed && (
+                          <p>Energy Contributed: {member.energy_contributed.toFixed(1)} kWh</p>
+                        )}
+                        {member.energy_consumed && <p>Energy Consumed: {member.energy_consumed.toFixed(1)} kWh</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FaUsers className="mx-auto text-4xl text-gray-300 mb-2" />
+                  <p className="text-gray-500">No members found for this community</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
-export default CommunityPage
-
+export default Community
