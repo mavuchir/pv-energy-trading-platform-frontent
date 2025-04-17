@@ -1,124 +1,63 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
-import NotificationService from "../services/NotificationService"; // Adjust the import path as necessary
+import { createContext, useState, useEffect, useContext } from "react"
+import { useSocket } from "./SocketContext"
 
-const NotificationContext = createContext();
+const NotificationContext = createContext()
+
+export const useNotification = () => useContext(NotificationContext)
 
 export const NotificationProvider = ({ children }) => {
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [notifications, setNotifications] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const { socket, connected } = useSocket()
 
-  // Fetch notifications on mount
   useEffect(() => {
-    fetchNotifications();
-  }, []); // Run only once
+    if (socket && connected) {
+      // Listen for new notifications
+      socket.on("notification", (notification) => {
+        setNotifications((prev) => [notification, ...prev])
+        setUnreadCount((prev) => prev + 1)
+      })
 
-  // Fetch notifications
-  const fetchNotifications = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { notifications: fetchedNotifications } = await NotificationService.getNotifications();
-      setNotifications(fetchedNotifications);
-      setUnreadCount(fetchedNotifications.filter((n) => !n.is_read).length);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching notifications:", err);
-      setError("Failed to fetch notifications");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Mark notification as read
-  const markAsRead = async (notificationId) => {
-    try {
-      await NotificationService.markAsRead(notificationId);
-
-      // Update local state
-      setNotifications((prev) =>
-        prev.map((notification) =>
-          notification.id === notificationId ? { ...notification, is_read: true } : notification
-        )
-      );
-
-      // Update unread count
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-    } catch (err) {
-      console.error("Error marking notification as read:", err);
-      throw new Error("Failed to mark notification as read");
-    }
-  };
-
-  // Mark all notifications as read
-  const markAllAsRead = async () => {
-    try {
-      await NotificationService.markAllAsRead();
-      
-      // Update local state
-      setNotifications((prev) => prev.map((notification) => ({ ...notification, is_read: true })));
-
-      // Reset unread count
-      setUnreadCount(0);
-    } catch (err) {
-      console.error("Error marking all notifications as read:", err);
-      throw new Error("Failed to mark all notifications as read");
-    }
-  };
-
-  // Delete notification
-  const deleteNotification = async (notificationId) => {
-    try {
-      await NotificationService.deleteNotification(notificationId);
-
-      // Update local state
-      const deletedNotification = notifications.find((n) => n.id === notificationId);
-      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
-
-      // Update unread count if needed
-      if (deletedNotification && !deletedNotification.is_read) {
-        setUnreadCount((prev) => Math.max(0, prev - 1));
+      // Clean up event listener on unmount
+      return () => {
+        socket.off("notification")
       }
-    } catch (err) {
-      console.error("Error deleting notification:", err);
-      throw new Error("Failed to delete notification");
     }
-  };
+  }, [socket, connected])
 
-  // Add a new notification (for testing or local updates)
-  const addNotification = (notification) => {
-    setNotifications((prev) => [notification, ...prev]);
-    if (!notification.is_read) {
-      setUnreadCount((prev) => prev + 1);
-    }
-  };
+  const markAsRead = (notificationId) => {
+    setNotifications((prev) =>
+      prev.map((notification) => (notification.id === notificationId ? { ...notification, read: true } : notification)),
+    )
+
+    // Update unread count
+    const unread = notifications.filter((n) => !n.read).length
+    setUnreadCount(unread)
+  }
+
+  const markAllAsRead = () => {
+    setNotifications((prev) => prev.map((notification) => ({ ...notification, read: true })))
+    setUnreadCount(0)
+  }
+
+  const clearNotifications = () => {
+    setNotifications([])
+    setUnreadCount(0)
+  }
 
   return (
     <NotificationContext.Provider
       value={{
         notifications,
         unreadCount,
-        loading,
-        error,
-        fetchNotifications,
         markAsRead,
         markAllAsRead,
-        deleteNotification,
-        addNotification,
+        clearNotifications,
       }}
     >
       {children}
     </NotificationContext.Provider>
-  );
-};
-
-// Custom hook to use the notification context
-export const useNotifications = () => {
-  const context = useContext(NotificationContext);
-  if (context === undefined) {
-    throw new Error("useNotification must be used within a NotificationProvider");
-  }
-  return context;
-};
+  )
+}

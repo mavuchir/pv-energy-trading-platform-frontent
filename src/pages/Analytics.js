@@ -22,9 +22,9 @@ import {
   Area,
 } from "recharts"
 import { FaExclamationTriangle, FaBolt, FaSolarPanel, FaChartLine, FaCalendarAlt, FaDownload } from "react-icons/fa"
-import EnergyService from "../services/energy"
-import ApplianceService from "../services/appliance"
-import TradingService from "../services/trading"
+import EnergyService from "../services/AnalyticsService"
+import ApplianceService from "../services/ApplianceService"
+import TradingService from "../services/TradeService"
 
 const Analytics = () => {
   const [loading, setLoading] = useState(true)

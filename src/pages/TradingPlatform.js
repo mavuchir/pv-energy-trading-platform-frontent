@@ -20,8 +20,8 @@ import {
   FaWallet,
   FaStar,
 } from "react-icons/fa"
-import TradingService from "../services/trading"
-import EnergyService from "../services/energy"
+import TradingService from "../services/TradeService"
+import EnergyService from "../services/EnergyService"
 import { useAuth } from "../contexts/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/button"

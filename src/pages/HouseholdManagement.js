@@ -1,6 +1,6 @@
 import React from 'react'
 
-const Weather = () => {
+const HouseholdManagement = () => {
   return (
     <div>
       
@@ -8,4 +8,4 @@ const Weather = () => {
   )
 }
 
-export default Weather
+export default HouseholdManagement

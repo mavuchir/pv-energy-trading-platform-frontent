@@ -2,11 +2,11 @@
 import { Link } from "react-router-dom"
 import { FaBell, FaCog, FaUser } from "react-icons/fa"
 import { useAuth } from "../../contexts/AuthContext"
-import { useNotifications } from "../../contexts/NotificationContext"
+import { useNotification } from "../../contexts/NotificationContext"
 
 const DashboardHeader = () => {
   const { user, logout } = useAuth()
-  const { notifications } = useNotifications()
+  const { notifications } = useNotification()
 
   const unreadCount = notifications?.filter((n) => !n.is_read).length || 0
 

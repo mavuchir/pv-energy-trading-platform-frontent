@@ -1,133 +1,105 @@
-import axios from "axios"
+import api from "./api"
 
-// API URL from environment variable
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000"
-
-class AuthService {
-  // Login user
-  static async login(username, password) {
+const authService = {
+  login: async (username, password) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, {
-        username,
-        password,
-      })
+      console.log("Attempting login with:", { username })
+      const response = await api.post("/auth/login", { username, password })
+      console.log("Login API response:", response)
 
-      const { access_token, user } = response.data
+      if (response && response.access_token) {
+        localStorage.setItem("token", response.access_token)
+        api.setToken(response.access_token)
 
-      // Save token to localStorage
-      localStorage.setItem("auth_token", access_token)
-
-      // Set authorization header
-      axios.defaults.headers.common["Authorization"] = `Bearer ${access_token}`
-
-      return user
+        return { success: true, user: response.user }
+      } else {
+        console.error("Invalid response format:", response)
+        return {
+          success: false,
+          message: "Invalid response from server. Please try again.",
+        }
+      }
     } catch (error) {
       console.error("Login error:", error)
-      throw error
+      return {
+        success: false,
+        message: error.response?.data?.message || "Login failed. Please check your credentials.",
+      }
     }
-  }
+  },
 
-  // Register user
-  static async register(userData) {
+  register: async (userData) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/register`, userData)
+      const response = await api.post("/auth/register", userData)
 
-      const { access_token, user } = response.data
+      if (response && response.access_token) {
+        localStorage.setItem("token", response.access_token)
+        api.setToken(response.access_token)
 
-      // Save token to localStorage
-      localStorage.setItem("auth_token", access_token)
-
-      // Set authorization header
-      axios.defaults.headers.common["Authorization"] = `Bearer ${access_token}`
-
-      return user
+        return { success: true, user: response.user }
+      } else {
+        return {
+          success: false,
+          message: "Registration failed. Please try again.",
+        }
+      }
     } catch (error) {
-      console.error("Registration error:", error)
-      throw error
+      return {
+        success: false,
+        message: error.response?.data?.message || "Registration failed. Please try again.",
+      }
     }
-  }
+  },
 
-  // Logout user
-  static async logout() {
+  logout: () => {
+    localStorage.removeItem("token")
+    api.removeToken()
+    return { success: true }
+  },
+
+  getToken: () => {
+    return localStorage.getItem("token")
+  },
+
+  isAuthenticated: () => {
+    return !!localStorage.getItem("token")
+  },
+
+  getProfile: async () => {
     try {
-      // Call logout endpoint if available
-      await axios.post(`${API_URL}/auth/logout`)
-    } catch (error) {
-      console.error("Logout error:", error)
-    } finally {
-      // Remove token from localStorage
-      localStorage.removeItem("auth_token")
-
-      // Remove authorization header
-      delete axios.defaults.headers.common["Authorization"]
-    }
-  }
-
-  // Get user profile
-  static async getProfile() {
-    try {
-      const response = await axios.get(`${API_URL}/auth/profile`)
-      return response.data
+      return await api.get("/auth/profile")
     } catch (error) {
       console.error("Get profile error:", error)
       throw error
     }
-  }
+  },
 
-  // Update user profile
-  static async updateProfile(profileData) {
+  updateProfile: async (profileData) => {
     try {
-      const response = await axios.put(`${API_URL}/auth/profile`, profileData)
-      return response.data
+      const response = await api.put("/auth/profile", profileData)
+      return { success: true, user: response.user }
     } catch (error) {
-      console.error("Update profile error:", error)
-      throw error
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to update profile.",
+      }
     }
-  }
+  },
 
-  // Change password
-  static async changePassword(currentPassword, newPassword) {
+  changePassword: async (currentPassword, newPassword) => {
     try {
-      const response = await axios.put(`${API_URL}/auth/change-password`, {
+      await api.put("/auth/change-password", {
         current_password: currentPassword,
         new_password: newPassword,
       })
-      return response.data
+      return { success: true }
     } catch (error) {
-      console.error("Change password error:", error)
-      throw error
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to change password.",
+      }
     }
-  }
-
-  // Request password reset
-  static async requestPasswordReset(email) {
-    try {
-      const response = await axios.post(`${API_URL}/auth/forgot-password`, { email })
-      return response.data
-    } catch (error) {
-      console.error("Request password reset error:", error)
-      throw error
-    }
-  }
-
-  // Reset password with token
-  static async resetPassword(token, newPassword) {
-    try {
-      const response = await axios.post(`${API_URL}/auth/reset-password`, {
-        token,
-        new_password: newPassword,
-      })
-      return response.data
-    } catch (error) {
-      console.error("Reset password error:", error)
-      throw error
-    }
-  }
-
-  // Check if user is authenticated
-  static isAuthenticated() {
-    return !!localStorage.getItem("auth_token")
-  }
+  },
 }
 
-export default AuthService
+export default authService

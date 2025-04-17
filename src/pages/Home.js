@@ -29,14 +29,14 @@ const Home = () => {
               </p>
               <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
                 <Link
-                  to="auth/login"
+                  to="/login"
                   className="bg-white text-teal-600 px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center justify-center"
                 >
                   <FaSignInAlt className="mr-2" />
                   Sign In
                 </Link>
                 <Link
-                  to="auth/login"
+                  to="/login"
                   className="bg-teal-700 text-white px-6 py-3 rounded-lg font-medium hover:bg-teal-800 transition-colors flex items-center justify-center"
                 >
                   Get Started

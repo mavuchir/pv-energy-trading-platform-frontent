@@ -1,36 +1,33 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useState } from "react"
 import { Outlet } from "react-router-dom"
-import { useNavigation } from "../../contexts/NavigationContext"
-import TopNavigation from "./TopNavigation"
 import Sidebar from "./Sidebar"
+import Header from "./Header"
+import Footer from "./Footer"
 
 const AppLayout = () => {
-  const { setIsScrollingDown, isSidebarOpen } = useNavigation()
-  const lastScrollYRef = useRef(0)
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY
-      setIsScrollingDown(currentScrollY > lastScrollYRef.current)
-      lastScrollYRef.current = currentScrollY
-    }
-
-    window.addEventListener("scroll", handleScroll, { passive: true })
-    return () => window.removeEventListener("scroll", handleScroll)
-  }, [setIsScrollingDown])
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
-      <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarOpen ? "md:ml-64" : "md:ml-20"}`}>
-        <TopNavigation />
-        <main className="flex-1 overflow-auto p-6 pt-20">
-          <div className="container mx-auto max-w-7xl">
-            <Outlet />
+    <div className="h-screen flex overflow-hidden bg-gray-100">
+      {/* Sidebar for mobile */}
+      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+
+      {/* Main content */}
+      <div className="flex flex-col w-0 flex-1 overflow-hidden">
+        <Header setSidebarOpen={setSidebarOpen} />
+
+        <main className="flex-1 relative overflow-y-auto focus:outline-none">
+          <div className="py-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+              {/* Page content */}
+              <Outlet />
+            </div>
           </div>
         </main>
+
+        <Footer />
       </div>
     </div>
   )

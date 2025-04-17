@@ -12,7 +12,7 @@ import {
   FaExclamationTriangle,
   FaCheckCircle,
 } from "react-icons/fa"
-import EnergyService from "../services/energy"
+import EnergyService from "../services/EnergyService"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/Tabs"

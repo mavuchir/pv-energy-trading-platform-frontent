@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { FaUser, FaEnvelope, FaLock, FaHome, FaSave, FaExclamationTriangle } from "react-icons/fa"
 import { useAuth } from "../contexts/AuthContext"
-import AuthService from "../services/AuthService"
+import AuthService from "../services/api"
 
 const ProfileSettings = () => {
   const { user, updateUserProfile } = useAuth()
