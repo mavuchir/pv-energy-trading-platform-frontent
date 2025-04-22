@@ -1,211 +1,269 @@
-"use client"
-
-import { useEffect } from "react"
-import { Link, useNavigate } from "react-router-dom"
-import { useAuth } from "../contexts/AuthContext"
-import { FaSolarPanel, FaExchangeAlt, FaUsers, FaChartLine, FaSignInAlt } from "react-icons/fa"
+import React from "react"
+import { Link } from "react-router-dom"
+import { useAuth } from "../hooks/use-auth"
+import {
+  FaSolarPanel,
+  FaChartLine,
+  FaExchangeAlt,
+  FaUsers,
+  FaLightbulb,
+  FaCloudSunRain,
+  FaArrowRight
+} from "react-icons/fa"
 
 const Home = () => {
   const { isAuthenticated } = useAuth()
-  const navigate = useNavigate()
-
-  useEffect(() => {
-    // Redirect to dashboard if already authenticated
-    if (isAuthenticated) {
-      navigate("/dashboard")
-    }
-  }, [isAuthenticated, navigate])
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-white">
       {/* Hero Section */}
-      <header className="bg-teal-600 text-white">
-        <div className="container mx-auto px-4 py-16 md:py-24">
-          <div className="flex flex-col md:flex-row items-center">
-            <div className="md:w-1/2 mb-10 md:mb-0">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">Smart Energy Trading Platform</h1>
-              <p className="text-xl mb-8">
-                Optimize your energy usage, trade excess power, and join a sustainable community.
-              </p>
-              <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+      <div className="relative bg-gradient-to-r from-blue-500 to-teal-500">
+        <div className="absolute inset-0">
+          <img
+            className="w-full h-full object-cover opacity-20"
+            src="/placeholder.svg?height=1080&width=1920"
+            alt="Energy Management"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-teal-500 mix-blend-multiply"></div>
+        </div>
+        <div className="relative max-w-7xl mx-auto py-24 px-4 sm:py-32 sm:px-6 lg:px-8">
+          <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
+            Smart Energy Management
+          </h1>
+          <p className="mt-6 max-w-3xl text-xl text-white">
+            Monitor, optimize, and trade energy within your community. Take control of your energy
+            production and consumption with our intelligent management system.
+          </p>
+          <div className="mt-10 flex items-center space-x-6">
+            {isAuthenticated ? (
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+              >
+                Go to Dashboard <FaArrowRight className="ml-2" />
+              </Link>
+            ) : (
+              <>
                 <Link
                   to="/login"
-                  className="bg-white text-teal-600 px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center justify-center"
+                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
                 >
-                  <FaSignInAlt className="mr-2" />
                   Sign In
                 </Link>
                 <Link
-                  to="/login"
-                  className="bg-teal-700 text-white px-6 py-3 rounded-lg font-medium hover:bg-teal-800 transition-colors flex items-center justify-center"
+                  to="/register"
+                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-teal-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
                 >
-                  Get Started
+                  Create Account
                 </Link>
-              </div>
-            </div>
-            <div className="md:w-1/2 flex justify-center">
-              <img
-                src="/placeholder.svg?height=400&width=500"
-                alt="Energy Trading Platform"
-                className="max-w-full h-auto rounded-lg shadow-lg"
-              />
-            </div>
+              </>
+            )}
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Features Section */}
-      <section className="py-16">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">Key Features</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
-                <FaSolarPanel className="text-yellow-600 text-xl" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Energy Management</h3>
-              <p className="text-gray-600">Monitor and optimize your energy production and consumption in real-time.</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mb-4">
-                <FaExchangeAlt className="text-teal-600 text-xl" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">P2P Trading</h3>
-              <p className="text-gray-600">
-                Buy and sell excess energy directly with other households in your community.
-              </p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                <FaUsers className="text-blue-600 text-xl" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Community Network</h3>
-              <p className="text-gray-600">
-                Join a network of like-minded individuals committed to sustainable energy.
-              </p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-4">
-                <FaChartLine className="text-purple-600 text-xl" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Smart Analytics</h3>
-              <p className="text-gray-600">Get AI-powered insights and recommendations to maximize efficiency.</p>
-            </div>
+      <div className="py-16 bg-gray-50 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-base font-semibold text-teal-600 tracking-wide uppercase">
+              Features
+            </h2>
+            <p className="mt-1 text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight">
+              Harness the power of renewable energy
+            </p>
+            <p className="max-w-xl mt-5 mx-auto text-xl text-gray-500">
+              Our integrated platform provides everything you need to monitor, optimize, and trade energy.
+            </p>
           </div>
-        </div>
-      </section>
 
-      {/* How It Works Section */}
-      <section className="py-16 bg-gray-100">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">How It Works</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-teal-600 rounded-full flex items-center justify-center mx-auto mb-4 text-white text-2xl font-bold">
-                1
+          <div className="mt-16">
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="pt-6">
+                <div className="flow-root bg-white rounded-lg px-6 pb-8 shadow-lg">
+                  <div className="-mt-6">
+                    <div>
+                      <span className="inline-flex items-center justify-center p-3 bg-teal-500 rounded-md shadow-lg">
+                        <FaSolarPanel className="h-6 w-6 text-white" />
+                      </span>
+                    </div>
+                    <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                      Energy Monitoring
+                    </h3>
+                    <p className="mt-5 text-base text-gray-500">
+                      Real-time monitoring of your energy production and consumption. Track solar panel
+                      output, battery storage, and household usage.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Connect Your System</h3>
-              <p className="text-gray-600">
-                Link your solar panels, battery storage, and smart appliances to our platform.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-teal-600 rounded-full flex items-center justify-center mx-auto mb-4 text-white text-2xl font-bold">
-                2
+
+              <div className="pt-6">
+                <div className="flow-root bg-white rounded-lg px-6 pb-8 shadow-lg">
+                  <div className="-mt-6">
+                    <div>
+                      <span className="inline-flex items-center justify-center p-3 bg-teal-500 rounded-md shadow-lg">
+                        <FaChartLine className="h-6 w-6 text-white" />
+                      </span>
+                    </div>
+                    <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                      Predictive Analytics
+                    </h3>
+                    <p className="mt-5 text-base text-gray-500">
+                      AI-powered predictions for energy production and consumption based on weather
+                      forecasts and historical data.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Monitor & Optimize</h3>
-              <p className="text-gray-600">
-                Track your energy usage and get personalized recommendations for improvement.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-teal-600 rounded-full flex items-center justify-center mx-auto mb-4 text-white text-2xl font-bold">
-                3
+
+              <div className="pt-6">
+                <div className="flow-root bg-white rounded-lg px-6 pb-8 shadow-lg">
+                  <div className="-mt-6">
+                    <div>
+                      <span className="inline-flex items-center justify-center p-3 bg-teal-500 rounded-md shadow-lg">
+                        <FaExchangeAlt className="h-6 w-6 text-white" />
+                      </span>
+                    </div>
+                    <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                      Energy Trading
+                    </h3>
+                    <p className="mt-5 text-base text-gray-500">
+                      Buy and sell excess energy with your community. Set your prices and trade
+                      automatically based on your energy needs.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Trade & Save</h3>
-              <p className="text-gray-600">
-                Buy when prices are low, sell when high, and reduce your overall energy costs.
-              </p>
+
+              <div className="pt-6">
+                <div className="flow-root bg-white rounded-lg px-6 pb-8 shadow-lg">
+                  <div className="-mt-6">
+                    <div>
+                      <span className="inline-flex items-center justify-center p-3 bg-teal-500 rounded-md shadow-lg">
+                        <FaUsers className="h-6 w-6 text-white" />
+                      </span>
+                    </div>
+                    <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                      Community Engagement
+                    </h3>
+                    <p className="mt-5 text-base text-gray-500">
+                      Join energy communities to share resources, reduce costs, and create a more
+                      sustainable energy ecosystem.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <div className="flow-root bg-white rounded-lg px-6 pb-8 shadow-lg">
+                  <div className="-mt-6">
+                    <div>
+                      <span className="inline-flex items-center justify-center p-3 bg-teal-500 rounded-md shadow-lg">
+                        <FaLightbulb className="h-6 w-6 text-white" />
+                      </span>
+                    </div>
+                    <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                      Smart Optimization
+                    </h3>
+                    <p className="mt-5 text-base text-gray-500">
+                      Intelligent suggestions to optimize energy usage based on your habits, weather
+                      conditions, and energy prices.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <div className="flow-root bg-white rounded-lg px-6 pb-8 shadow-lg">
+                  <div className="-mt-6">
+                    <div>
+                      <span className="inline-flex items-center justify-center p-3 bg-teal-500 rounded-md shadow-lg">
+                        <FaCloudSunRain className="h-6 w-6 text-white" />
+                      </span>
+                    </div>
+                    <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                      Weather Integration
+                    </h3>
+                    <p className="mt-5 text-base text-gray-500">
+                      Real-time weather data and forecasts to predict solar energy production and
+                      optimize your energy usage.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
       {/* CTA Section */}
-      <section className="py-16 bg-teal-600 text-white">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-6">Ready to Join the Energy Revolution?</h2>
-          <p className="text-xl mb-8 max-w-2xl mx-auto">
-            Start managing your energy smarter today and become part of a sustainable future.
+      <div className="bg-teal-700">
+        <div className="max-w-2xl mx-auto text-center py-16 px-4 sm:py-20 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-extrabold text-white sm:text-4xl">
+            <span className="block">Ready to get started?</span>
+            <span className="block">Sign up now for a free trial.</span>
+          </h2>
+          <p className="mt-4 text-lg leading-6 text-teal-200">
+            Join thousands of households already managing their energy more efficiently.
           </p>
-          <Link
-            to="/register"
-            className="bg-white text-teal-600 px-8 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors inline-block"
-          >
-            Create Your Account
-          </Link>
+          <div className="mt-8 flex justify-center">
+            {isAuthenticated ? (
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-teal-700 bg-white hover:bg-teal-50"
+              >
+                Go to Dashboard
+              </Link>
+            ) : (
+              <Link
+                to="/register"
+                className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-teal-700 bg-white hover:bg-teal-50"
+              >
+                Create Free Account
+              </Link>
+            )}
+          </div>
         </div>
-      </section>
+      </div>
 
       {/* Footer */}
-      <footer className="bg-gray-800 text-white py-12">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <h3 className="text-xl font-semibold mb-4">EnergyTrade</h3>
-              <p className="text-gray-400">The smart platform for energy management and peer-to-peer trading.</p>
+      <footer className="bg-white">
+        <div className="max-w-7xl mx-auto py-12 px-4 overflow-hidden sm:px-6 lg:px-8">
+          <nav className="-mx-5 -my-2 flex flex-wrap justify-center" aria-label="Footer">
+            <div className="px-5 py-2">
+              <a href="#" className="text-base text-gray-500 hover:text-gray-900">
+                About
+              </a>
             </div>
-            <div>
-              <h4 className="text-lg font-medium mb-4">Quick Links</h4>
-              <ul className="space-y-2">
-                <li>
-                  <Link to="/" className="text-gray-400 hover:text-white">
-                    Home
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/login" className="text-gray-400 hover:text-white">
-                    Login
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/register" className="text-gray-400 hover:text-white">
-                    Register
-                  </Link>
-                </li>
-              </ul>
+
+            <div className="px-5 py-2">
+              <a href="#" className="text-base text-gray-500 hover:text-gray-900">
+                Features
+              </a>
             </div>
-            <div>
-              <h4 className="text-lg font-medium mb-4">Resources</h4>
-              <ul className="space-y-2">
-                <li>
-                  <a href="#" className="text-gray-400 hover:text-white">
-                    Documentation
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-gray-400 hover:text-white">
-                    API
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-gray-400 hover:text-white">
-                    Support
-                  </a>
-                </li>
-              </ul>
+
+            <div className="px-5 py-2">
+              <a href="#" className="text-base text-gray-500 hover:text-gray-900">
+                Pricing
+              </a>
             </div>
-            <div>
-              <h4 className="text-lg font-medium mb-4">Contact</h4>
-              <ul className="space-y-2">
-                <li className="text-gray-400">info@energytrade.com</li>
-                <li className="text-gray-400">+1 (555) 123-4567</li>
-              </ul>
+
+            <div className="px-5 py-2">
+              <a href="#" className="text-base text-gray-500 hover:text-gray-900">
+                FAQ
+              </a>
             </div>
-          </div>
-          <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; {new Date().getFullYear()} EnergyTrade. All rights reserved.</p>
-          </div>
+
+            <div className="px-5 py-2">
+              <a href="#" className="text-base text-gray-500 hover:text-gray-900">
+                Contact
+              </a>
+            </div>
+          </nav>
+          <p className="mt-8 text-center text-base text-gray-400">
+            &copy; {new Date().getFullYear()} Energy Management System. All rights reserved.
+          </p>
         </div>
       </footer>
     </div>

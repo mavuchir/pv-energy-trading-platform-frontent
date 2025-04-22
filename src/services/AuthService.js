@@ -1,105 +1,138 @@
-import api from "./api"
+// Authentication service for handling tokens and auth headers
 
+// Get the authentication token from localStorage
+export const getToken = () => {
+  return localStorage.getItem('token');
+};
+
+// Set the authentication token in localStorage
+export const setToken = (token) => {
+  if (token) {
+    localStorage.setItem('token', token);
+  } else {
+    localStorage.removeItem('token');
+  }
+};
+
+// Remove the authentication token from localStorage
+export const removeToken = () => {
+  localStorage.removeItem('token');
+};
+
+// Get authentication headers for API requests
+export const getAuthHeaders = () => {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// Check if the user is authenticated
+export const isAuthenticated = () => {
+  return !!getToken();
+};
+
+// Login function
+export const login = async (username, password) => {
+  try {
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ username, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.msg || 'Login failed');
+    }
+
+    setToken(data.access_token);
+    return { success: true, user: data.user };
+  } catch (error) {
+    console.error('Login error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Register function
+export const register = async (userData) => {
+  try {
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.msg || 'Registration failed');
+    }
+
+    setToken(data.access_token);
+    return { success: true, user: data.user };
+  } catch (error) {
+    console.error('Registration error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Logout function
+export const logout = async () => {
+  try {
+    const token = getToken();
+    if (token) {
+      // Optional: Call logout endpoint
+      await fetch(`${process.env.REACT_APP_API_URL}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    }
+    removeToken();
+    return { success: true };
+  } catch (error) {
+    console.error('Logout error:', error);
+    removeToken(); // Still remove token even if API call fails
+    return { success: true };
+  }
+};
+
+// Get user profile
+export const getUserProfile = async () => {
+  try {
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/profile`, {
+      headers: getAuthHeaders(),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.msg || 'Failed to fetch user profile');
+    }
+
+    return { success: true, user: data };
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Default export for the service
 const authService = {
-  login: async (username, password) => {
-    try {
-      console.log("Attempting login with:", { username })
-      const response = await api.post("/auth/login", { username, password })
-      console.log("Login API response:", response)
+  getToken,
+  setToken,
+  removeToken,
+  getAuthHeaders,
+  isAuthenticated,
+  login,
+  register,
+  logout,
+  getUserProfile,
+};
 
-      if (response && response.access_token) {
-        localStorage.setItem("token", response.access_token)
-        api.setToken(response.access_token)
-
-        return { success: true, user: response.user }
-      } else {
-        console.error("Invalid response format:", response)
-        return {
-          success: false,
-          message: "Invalid response from server. Please try again.",
-        }
-      }
-    } catch (error) {
-      console.error("Login error:", error)
-      return {
-        success: false,
-        message: error.response?.data?.message || "Login failed. Please check your credentials.",
-      }
-    }
-  },
-
-  register: async (userData) => {
-    try {
-      const response = await api.post("/auth/register", userData)
-
-      if (response && response.access_token) {
-        localStorage.setItem("token", response.access_token)
-        api.setToken(response.access_token)
-
-        return { success: true, user: response.user }
-      } else {
-        return {
-          success: false,
-          message: "Registration failed. Please try again.",
-        }
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || "Registration failed. Please try again.",
-      }
-    }
-  },
-
-  logout: () => {
-    localStorage.removeItem("token")
-    api.removeToken()
-    return { success: true }
-  },
-
-  getToken: () => {
-    return localStorage.getItem("token")
-  },
-
-  isAuthenticated: () => {
-    return !!localStorage.getItem("token")
-  },
-
-  getProfile: async () => {
-    try {
-      return await api.get("/auth/profile")
-    } catch (error) {
-      console.error("Get profile error:", error)
-      throw error
-    }
-  },
-
-  updateProfile: async (profileData) => {
-    try {
-      const response = await api.put("/auth/profile", profileData)
-      return { success: true, user: response.user }
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || "Failed to update profile.",
-      }
-    }
-  },
-
-  changePassword: async (currentPassword, newPassword) => {
-    try {
-      await api.put("/auth/change-password", {
-        current_password: currentPassword,
-        new_password: newPassword,
-      })
-      return { success: true }
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || "Failed to change password.",
-      }
-    }
-  },
-}
-
-export default authService
+export default authService;
