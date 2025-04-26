@@ -1,152 +1,135 @@
 "use client"
-
 import { Link, useLocation } from "react-router-dom"
 import { useAuth } from "../../contexts/AuthContext"
-import { useNavigation } from "../../contexts/NavigationContext"
 import {
-  BarChart2,
-  Settings,
-  Users,
-  LogOut,
-  LayoutDashboard,
-  LineChart,
-  Cloud,
-  Battery,
-  Plug,
-  ShieldAlert,
-  Beaker,
-} from "lucide-react"
-import { Button } from "../ui/button"
-import { ScrollArea } from "../ui/scroll-area"
+  FaTimes,
+  FaHome,
+  FaChartLine,
+  FaPlug,
+  FaExchangeAlt,
+  FaUsers,
+  FaLightbulb,
+  FaCloudSun,
+  FaCog,
+  FaUserCog,
+  FaBatteryHalf,
+  FaHouseUser,
+} from "react-icons/fa"
 
-const NAV_ITEMS = [
-  {
-    name: "Dashboard",
-    path: "/dashboard",
-    icon: LayoutDashboard,
-    roles: ["household", "admin"],
-    description: "Overview of your energy system",
-  },
-  {
-    name: "Energy Analytics",
-    path: "/analytics",
-    icon: BarChart2,
-    roles: ["household", "admin"],
-    description: "Detailed energy analytics",
-  },
-  {
-    name: "Appliance Control",
-    path: "/appliance-control",
-    icon: Plug,
-    roles: ["household"],
-    description: "Manage your appliances",
-  },
-  {
-    name: "Trading Platform",
-    path: "/trading",
-    icon: LineChart,
-    roles: ["household"],
-    description: "Buy and sell energy",
-  },
-  {
-    name: "Community Energy",
-    path: "/community",
-    icon: Users,
-    roles: ["household"],
-    description: "Connect with energy community",
-  },
-  {
-    name: "Energy Optimization",
-    path: "/optimization",
-    icon: Battery,
-    roles: ["household"],
-    description: "AI-powered energy optimization",
-  },
-  {
-    name: "Weather Forecast",
-    path: "/weather",
-    icon: Cloud,
-    roles: ["household"],
-    description: "Weather and solar forecasts",
-  },
-  {
-    name: "System Configuration",
-    path: "/settings",
-    icon: Settings,
-    roles: ["household", "admin"],
-    description: "System preferences",
-  },
-  {
-    name: "Admin Panel",
-    path: "/admin",
-    icon: ShieldAlert,
-    roles: ["admin"],
-    description: "System administration",
-  },
-  {
-    name: "Demo Controls",
-    path: "/demo",
-    icon: Beaker,
-    roles: ["admin"],
-    description: "System simulation controls",
-  },
-]
-
-const Sidebar = () => {
-  const { user, logout } = useAuth()
+const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
   const location = useLocation()
-  const { isSidebarOpen, toggleSidebar } = useNavigation()
+  const { user } = useAuth()
 
-  const filteredNavItems = NAV_ITEMS.filter((item) => item.roles.includes(user?.role || "household"))
+  const navigation = [
+    { name: "Dashboard", href: "/dashboard", icon: FaHome },
+    { name: "Analytics", href: "/analytics", icon: FaChartLine },
+    { name: "Appliance Control", href: "/appliance-control", icon: FaPlug },
+    { name: "Trading Platform", href: "/trading", icon: FaExchangeAlt },
+    { name: "Community", href: "/community", icon: FaUsers },
+    { name: "Optimization", href: "/optimization", icon: FaLightbulb },
+    { name: "Weather", href: "/weather", icon: FaCloudSun },
+    { name: "Settings", href: "/settings", icon: FaCog },
+  ]
 
-  if (!user) return null
+  // Add admin link if user has admin role
+  if (user?.role === "admin") {
+    navigation.push({ name: "Admin Panel", href: "/admin", icon: FaUserCog })
+  }
 
   return (
-    <aside
-      className={`
-        fixed lg:static inset-y-0 left-0 z-30
-        w-64 bg-white border-r transform transition-transform duration-300
-        ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-      `}
-    >
-      <div className="flex flex-col h-full">
-        <div className="p-4 border-b">
-          <h1 className="text-xl font-semibold text-teal-600">PV Energy System</h1>
-          <p className="text-sm text-gray-500">Welcome, {user.full_name || user.username}</p>
+    <>
+      {/* Mobile sidebar */}
+      <div className={`md:hidden fixed inset-0 flex z-40 ${sidebarOpen ? "" : "pointer-events-none"}`}>
+        {/* Overlay */}
+        <div
+          className={`fixed inset-0 bg-gray-600 ${sidebarOpen ? "opacity-75" : "opacity-0 pointer-events-none"} transition-opacity ease-linear duration-300`}
+          onClick={() => setSidebarOpen(false)}
+        ></div>
+
+        {/* Sidebar panel */}
+        <div
+          className={`relative flex-1 flex flex-col max-w-xs w-full pt-5 pb-4 bg-teal-700 transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} transition ease-in-out duration-300`}
+        >
+          <div className="absolute top-0 right-0 -mr-12 pt-2">
+            <button
+              className={`ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white ${sidebarOpen ? "" : "pointer-events-none"}`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <span className="sr-only">Close sidebar</span>
+              <FaTimes className="h-6 w-6 text-white" />
+            </button>
+          </div>
+
+          <div className="flex-shrink-0 flex items-center px-4">
+            <span className="text-2xl font-bold text-white">EnergyTrade</span>
+          </div>
+
+          <div className="mt-5 flex-1 h-0 overflow-y-auto">
+            <nav className="px-2 space-y-1">
+              {navigation.map((item) => {
+                const isActive = location.pathname === item.href
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={`group flex items-center px-2 py-2 text-base font-medium rounded-md ${
+                      isActive ? "bg-teal-800 text-white" : "text-teal-100 hover:bg-teal-600"
+                    }`}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <item.icon
+                      className={`mr-4 h-6 w-6 ${
+                        isActive ? "text-teal-200" : "text-teal-300 group-hover:text-teal-200"
+                      }`}
+                    />
+                    {item.name}
+                  </Link>
+                )
+              })}
+            </nav>
+          </div>
         </div>
 
-        <ScrollArea className="flex-1 py-2">
-          <nav className="px-2 space-y-1">
-            {filteredNavItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`
-                  flex items-center gap-3 px-3 py-2 rounded-lg
-                  transition-colors duration-200
-                  ${location.pathname === item.path ? "bg-teal-50 text-teal-700" : "text-gray-700 hover:bg-gray-100"}
-                `}
-              >
-                <item.icon className="h-5 w-5" />
-                <div className="flex-1">
-                  <p className="font-medium">{item.name}</p>
-                  <p className="text-xs text-gray-500">{item.description}</p>
-                </div>
-              </Link>
-            ))}
-          </nav>
-        </ScrollArea>
-
-        <div className="p-4 border-t">
-          <Button variant="destructive" className="w-full" onClick={logout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
+        <div className="flex-shrink-0 w-14" aria-hidden="true">
+          {/* Dummy element to force sidebar to shrink to fit close icon */}
         </div>
       </div>
-    </aside>
+
+      {/* Desktop sidebar */}
+      <div className="hidden md:flex md:flex-shrink-0">
+        <div className="flex flex-col w-64">
+          <div className="flex flex-col h-0 flex-1">
+            <div className="flex items-center h-16 flex-shrink-0 px-4 bg-teal-700">
+              <span className="text-2xl font-bold text-white">EnergyTrade</span>
+            </div>
+            <div className="flex-1 flex flex-col overflow-y-auto">
+              <nav className="flex-1 px-2 py-4 bg-teal-700 space-y-1">
+                {navigation.map((item) => {
+                  const isActive = location.pathname === item.href
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
+                        isActive ? "bg-teal-800 text-white" : "text-teal-100 hover:bg-teal-600"
+                      }`}
+                    >
+                      <item.icon
+                        className={`mr-3 h-6 w-6 ${
+                          isActive ? "text-teal-200" : "text-teal-300 group-hover:text-teal-200"
+                        }`}
+                      />
+                      {item.name}
+                    </Link>
+                  )
+                })}
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
 
 export default Sidebar
-

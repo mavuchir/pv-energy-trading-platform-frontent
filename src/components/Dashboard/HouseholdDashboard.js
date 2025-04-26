@@ -512,7 +512,7 @@ const HouseholdDashboard = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Current Generation</p>
-                <p className="text-2xl font-bold text-yellow-700">{(status.generation || 0).toFixed(2)} kW</p>
+                <p className="text-2xl font-bold text-yellow-700">{(status.generation || 0).toFixed(5)} kW</p>
                 <p className="text-xs text-green-600">
                   {dashboard.today_generation > 0
                     ? `${dashboard.today_generation.toFixed(1)} kWh today`
@@ -582,6 +582,7 @@ const HouseholdDashboard = () => {
       </div>
 
       {/* Energy Monitoring Chart */}
+            {/* Energy Monitoring Chart */}
       <Card className="mb-6">
         <CardHeader className="pb-2">
           <div className="flex justify-between items-center">
@@ -591,8 +592,8 @@ const HouseholdDashboard = () => {
                 {selectedPeriod === "day"
                   ? "Today's generation and consumption"
                   : selectedPeriod === "week"
-                    ? "This week's energy flow"
-                    : "This month's energy patterns"}
+                  ? "This week's energy flow"
+                  : "This month's energy patterns"}
               </CardDescription>
             </div>
             <div className="text-sm text-gray-500">
@@ -615,7 +616,6 @@ const HouseholdDashboard = () => {
                 <Area
                   type="monotone"
                   dataKey="generation"
-                  stackId="1"
                   stroke="#4FD1C5"
                   fill="#4FD1C5"
                   fillOpacity={0.6}
@@ -624,45 +624,17 @@ const HouseholdDashboard = () => {
                 <Area
                   type="monotone"
                   dataKey="consumption"
-                  stackId="2"
                   stroke="#FC8181"
                   fill="#FC8181"
                   fillOpacity={0.6}
                   name="Consumption"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="batteryCharge"
-                  stackId="3"
-                  stroke="#F6AD55"
-                  fill="#F6AD55"
-                  fillOpacity={0.6}
-                  name="Battery"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="gridImport"
-                  stackId="4"
-                  stroke="#9F7AEA"
-                  fill="#9F7AEA"
-                  fillOpacity={0.6}
-                  name="Grid Import"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="gridExport"
-                  stackId="5"
-                  stroke="#38B2AC"
-                  fill="#38B2AC"
-                  fillOpacity={0.6}
-                  name="Grid Export"
                 />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
-
+      
       {/* Quick Access Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         {/* Quick Trading Card */}
